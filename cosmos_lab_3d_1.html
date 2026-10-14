@@ -1,0 +1,3005 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>COSMOS LAB | สื่อการเรียนรู้ระบบสุริยะและการจำลองสมมติฐานจักรวาล 3D</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Three.js for 3D Solar System & Collision Physics Visualization -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Google Fonts: Prompt for Thai, Space Grotesk & JetBrains Mono for Sci-Fi Telemetry -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Prompt:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Prompt', 'sans-serif'],
+                        display: ['Space Grotesk', 'Prompt', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        cosmos: {
+                            950: '#030611',
+                            900: '#070c1f',
+                            800: '#0f172a',
+                            accent: '#38bdf8',
+                            solar: '#f59e0b',
+                            danger: '#f43f5e',
+                            success: '#10b981'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #030611;
+            color: #f8fafc;
+            font-family: 'Prompt', sans-serif;
+        }
+        #canvas-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            cursor: grab;
+        }
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+        /* Glassmorphism HUD Surfaces */
+        .hud-glass {
+            background: rgba(9, 14, 32, 0.76);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(56, 189, 248, 0.18);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+        .hud-glass-amber {
+            background: rgba(24, 14, 8, 0.82);
+            backdrop-filter: blur(18px);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(251, 191, 36, 0.12);
+        }
+        .hud-glass-danger {
+            background: rgba(28, 8, 18, 0.82);
+            backdrop-filter: blur(18px);
+            border: 1px solid rgba(244, 63, 94, 0.35);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(244, 63, 94, 0.15);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.4);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(56, 189, 248, 0.35);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 189, 248, 0.65);
+        }
+        /* Subtle Glow & Pulse */
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(56, 189, 248, 0.3); }
+            50% { box-shadow: 0 0 28px rgba(56, 189, 248, 0.65); }
+        }
+        .active-planet-pill {
+            animation: pulseGlow 2.5s infinite ease-in-out;
+            border-color: #38bdf8 !important;
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(14, 116, 144, 0.15)) !important;
+        }
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: rgba(30, 41, 59, 0.9);
+            height: 6px;
+            border-radius: 999px;
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+            transition: transform 0.15s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        /* 3D Floating Planet Labels */
+        .planet-label-3d {
+            position: absolute;
+            pointer-events: auto;
+            cursor: pointer;
+            transform: translate(-50%, -140%);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            z-index: 5;
+        }
+        .planet-label-3d:hover {
+            transform: translate(-50%, -150%) scale(1.08);
+            z-index: 15;
+        }
+        /* Scanline overlay for futuristic feel */
+        .scanline-overlay {
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(56, 189, 248, 0.02) 50%, rgba(56, 189, 248, 0.02));
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+
+        /* ===== Layout fixes (responsive HUD) ===== */
+        :root { --hdr-h: 84px; }
+        .mode-btn { white-space: nowrap; flex-shrink: 0; }
+        #left-hud-panel, #right-main-panel { top: calc(var(--hdr-h) + 8px) !important; }
+        #left-hud-panel { max-height: calc(100vh - var(--hdr-h) - 110px); overflow: hidden; }
+        header nav { scrollbar-width: none; }
+        header nav::-webkit-scrollbar { display: none; }
+        @media (max-width: 767px) {
+            header { gap: 6px !important; }
+            header nav { order: 3; width: 100%; }
+            #left-hud-panel { max-width: 15rem; }
+            #left-hud-panel #time-controller-card,
+            #left-hud-panel > div:last-child { display: none; }
+            #right-main-panel {
+                top: auto !important;
+                bottom: 5.5rem;
+                height: 40vh;
+                width: calc(100vw - 1.5rem);
+                right: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body class="relative select-none overflow-hidden">
+
+    <!-- 3D WebGL Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- 3D Floating Labels Layer -->
+    <div id="labels-container" class="absolute inset-0 pointer-events-none z-10 overflow-hidden"></div>
+
+    <!-- Flash Overlay for Super Impacts -->
+    <div id="impact-flash" class="fixed inset-0 bg-white pointer-events-none opacity-0 transition-opacity duration-700 z-40"></div>
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="fixed top-0 left-0 right-0 z-30 p-3 md:px-6 md:py-3.5 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
+        <!-- Brand Logo & Status -->
+        <div class="hud-glass rounded-2xl px-4 py-2.5 flex items-center gap-3.5 pointer-events-auto">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 flex items-center justify-center shadow-lg shadow-orange-500/30 relative">
+                <i class="fa-solid fa-sun text-white text-lg animate-spin" style="animation-duration: 18s;"></i>
+                <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-sky-400 border-2 border-slate-950"></span>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="font-display font-bold text-base md:text-lg tracking-wider bg-gradient-to-r from-white via-sky-200 to-amber-200 bg-clip-text text-transparent">
+                        COSMOS LAB
+                    </h1>
+                    <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                        3D INTERACTIVE
+                    </span>
+                </div>
+                <p class="text-[11px] text-slate-400 hidden sm:block">ระบบสุริยะ ดวงอาทิตย์ และการจำลองสมมติฐานอวกาศ</p>
+            </div>
+        </div>
+
+        <!-- Primary Mode Switcher (4 Modes) -->
+        <nav class="hud-glass rounded-2xl p-1.5 flex items-center gap-1 pointer-events-auto overflow-x-auto max-w-full">
+            <button onclick="switchMode('explore')" id="mode-btn-explore" class="mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-medium transition-all flex items-center gap-2 bg-sky-500 text-slate-950 font-semibold shadow-lg shadow-sky-500/25">
+                <i class="fa-solid fa-compass"></i>
+                <span>สำรวจระบบสุริยะ</span>
+            </button>
+            <button onclick="switchMode('deepdive')" id="mode-btn-deepdive" class="mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2">
+                <i class="fa-solid fa-magnifying-glass-chart"></i>
+                <span>เจาะลึก & ผ่าโครงสร้าง</span>
+            </button>
+            <button onclick="switchMode('humanlab')" id="mode-btn-humanlab" class="mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2">
+                <i class="fa-solid fa-user-astronaut text-emerald-400"></i>
+                <span>จำลองไปเยือน & ดัดแปลงดาว</span>
+            </button>
+            <button onclick="switchMode('collision')" id="mode-btn-collision" class="mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2">
+                <i class="fa-solid fa-meteor text-rose-400"></i>
+                <span>จำลองการพุ่งชน</span>
+            </button>
+        </nav>
+
+        <!-- Quick Utility Controls -->
+        <div class="hud-glass rounded-2xl px-3 py-2 flex items-center gap-2 pointer-events-auto">
+            <button onclick="resetCameraOverview()" title="มุมมองภาพรวมระบบสุริยะ" class="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-sky-500/20 text-slate-200 hover:text-sky-300 border border-slate-700/60 text-xs flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-expand"></i>
+                <span class="hidden lg:inline">มุมมองรวม</span>
+            </button>
+            <button onclick="toggleOrbits()" id="btn-toggle-orbits" title="เปิด/ปิด เส้นวงโคจร" class="p-2 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-500/30 text-xs transition">
+                <i class="fa-solid fa-circle-nodes"></i>
+            </button>
+            <button onclick="toggleLabels()" id="btn-toggle-labels" title="เปิด/ปิด ชื่อดาว" class="p-2 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-500/30 text-xs transition">
+                <i class="fa-solid fa-tags"></i>
+            </button>
+            <button onclick="toggleSound()" id="btn-toggle-sound" title="เปิด/ปิด เสียงจำลองอวกาศ" class="p-2 rounded-xl bg-slate-800/80 text-slate-400 hover:text-white border border-slate-700/60 text-xs transition">
+                <i class="fa-solid fa-volume-xmark" id="sound-icon"></i>
+            </button>
+            <button onclick="openKnowledgeModal()" title="คู่มือความรู้น่ารู้เกี่ยวกับระบบสุริยะ" class="p-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs transition hover:bg-amber-500/30">
+                <i class="fa-solid fa-book-atlas"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- LEFT FLOATING MINI TELEMETRY & TIME CONTROL -->
+    <div id="left-hud-panel" class="fixed top-20 left-3 md:left-6 z-20 flex flex-col gap-3 pointer-events-none max-w-xs">
+        <!-- Active Target Status Pill -->
+        <div class="hud-glass rounded-2xl p-3.5 pointer-events-auto transition-all">
+            <div class="flex items-center justify-between gap-4 mb-2">
+                <span class="text-[11px] font-mono uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
+                    TARGET LOCK
+                </span>
+                <span id="hud-target-type" class="text-[10px] px-2 py-0.5 rounded-md bg-white/10 text-slate-300">ดาวฤกษ์ศูนย์กลาง</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <div id="hud-target-badge" class="w-11 h-11 rounded-xl flex items-center justify-center text-xl font-bold shadow-inner border border-white/15" style="background: radial-gradient(circle at 30% 30%, #fde047, #ea580c);">
+                    ☀️
+                </div>
+                <div>
+                    <h2 id="hud-target-name" class="text-lg font-bold text-white leading-tight">ดวงอาทิตย์ (The Sun)</h2>
+                    <p id="hud-target-en" class="text-xs text-slate-400 font-mono">Sol • G2V Main-Sequence Star</p>
+                </div>
+            </div>
+            <!-- Camera Zoom Action Buttons -->
+            <div class="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-800/80">
+                <button onclick="zoomCloseToCurrentTarget()" class="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/40 text-sky-200 text-xs font-medium flex items-center justify-center gap-1.5 transition">
+                    <i class="fa-solid fa-magnifying-glass-plus"></i> ซูมดูใกล้ๆ
+                </button>
+                <button onclick="toggleCrossSection()" id="btn-cross-section" class="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-amber-200 text-xs font-medium flex items-center justify-center gap-1.5 transition">
+                    <i class="fa-solid fa-layer-group"></i> ผ่าดูแกนดาว
+                </button>
+            </div>
+        </div>
+
+        <!-- Time Simulation Speed Controller -->
+        <div id="time-controller-card" class="hud-glass rounded-2xl p-3.5 pointer-events-auto">
+            <div class="flex items-center justify-between text-xs mb-2">
+                <span class="text-slate-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-clock-rotate-left text-sky-400"></i> ความเร็วการโคจร
+                </span>
+                <span id="time-speed-label" class="font-mono text-sky-300 font-semibold">1.0x ปกติ</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="togglePauseTime()" id="btn-pause-time" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center text-xs border border-slate-700">
+                    <i class="fa-solid fa-pause" id="pause-icon"></i>
+                </button>
+                <input type="range" id="time-speed-slider" min="0" max="5" step="0.1" value="1" class="w-full" oninput="updateTimeSpeed(this.value)">
+            </div>
+            <div class="flex justify-between text-[10px] text-slate-400 mt-1.5 font-mono">
+                <span>หยุดนิ่ง</span>
+                <span>ปกติ</span>
+                <span>เร่งเวลา 5x</span>
+            </div>
+        </div>
+
+        <!-- Interactive Gesture Hint -->
+        <div class="hud-glass rounded-xl px-3 py-2 text-[11px] text-slate-300 flex items-center gap-2.5 pointer-events-auto">
+            <i class="fa-solid fa-hand-pointer text-sky-400 text-sm"></i>
+            <span>ลากเมาส์/นิ้วเพื่อหมุนมุมมอง • เลื่อนลูกกลิ้งเพื่อซูมเข้า-ออก • คลิกที่ดาวเพื่อสำรวจ</span>
+        </div>
+    </div>
+
+    <!-- RIGHT MAIN INTERACTIVE PANEL (Dynamic Content Based on Mode) -->
+    <aside id="right-main-panel" class="fixed top-20 right-3 md:right-6 bottom-24 z-20 w-[92vw] sm:w-[410px] md:w-[440px] flex flex-col pointer-events-none transition-transform duration-300">
+        
+        <!-- Mobile Collapse Toggle Button -->
+        <div class="flex justify-end mb-1.5 pointer-events-auto">
+            <button onclick="toggleRightPanel()" id="btn-collapse-panel" class="hud-glass px-3 py-1 rounded-xl text-xs text-slate-300 hover:text-white flex items-center gap-1.5">
+                <span id="collapse-panel-text">ซ่อนหน้าต่างข้อมูล</span>
+                <i class="fa-solid fa-chevron-right" id="collapse-panel-icon"></i>
+            </button>
+        </div>
+
+        <!-- PANEL BODY CONTAINER -->
+        <div id="right-panel-body" class="hud-glass rounded-3xl p-4 md:p-5 overflow-y-auto flex-1 pointer-events-auto flex flex-col gap-4">
+            
+            <!-- ========================================== -->
+            <!-- VIEW 1 & 2: EXPLORE & DEEP DIVE INSPECTOR -->
+            <!-- ========================================== -->
+            <div id="panel-view-inspector" class="flex flex-col gap-4">
+                <!-- Header Summary Banner -->
+                <div class="relative rounded-2xl p-4 overflow-hidden border border-white/10" id="inspector-hero-banner" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(15, 23, 42, 0.9));">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <span id="insp-badge" class="text-[11px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                                ศูนย์กลางระบบสุริยะ
+                            </span>
+                            <h3 id="insp-title" class="text-2xl font-bold text-white mt-1.5">ดวงอาทิตย์ (Sun)</h3>
+                            <p id="insp-subtitle" class="text-xs text-slate-300 mt-0.5">ดาวฤกษ์สีเหลืองที่กักเก็บมวล 99.86% ของระบบสุริยะ</p>
+                        </div>
+                    </div>
+                    <!-- Key Highlight Pill -->
+                    <div class="mt-3 p-2.5 rounded-xl bg-black/35 border border-white/10 text-xs text-sky-200 flex items-start gap-2">
+                        <i class="fa-solid fa-star text-amber-400 mt-0.5"></i>
+                        <span id="insp-unique-feature">เอกลักษณ์เด่น: เตาปฏิกรณ์นิวเคลียร์ฟิวชันขนาดยักษ์ที่หลอมไฮโดรเจนเป็นฮีเลียมทุกวินาที</span>
+                    </div>
+                </div>
+
+                <!-- Sub-tabs inside Inspector -->
+                <div class="grid grid-cols-3 gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+                    <button onclick="switchInspectorTab('overview')" id="insp-tab-overview" class="insp-tab-btn py-1.5 rounded-lg text-xs font-medium bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                        ข้อมูลจำเพาะ
+                    </button>
+                    <button onclick="switchInspectorTab('structure')" id="insp-tab-structure" class="insp-tab-btn py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white">
+                        โครงสร้างภายใน
+                    </button>
+                    <button onclick="switchInspectorTab('howitworks')" id="insp-tab-howitworks" class="insp-tab-btn py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white">
+                        กลไกการทำงาน
+                    </button>
+                </div>
+
+                <!-- Sub-tab 1: Overview Telemetry Grid -->
+                <div id="insp-content-overview" class="flex flex-col gap-3">
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div class="p-3 rounded-2xl bg-slate-900/70 border border-slate-800/90">
+                            <span class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-temperature-half text-rose-400"></i> อุณหภูมิเฉลี่ย
+                            </span>
+                            <div id="stat-temp" class="text-sm md:text-base font-mono font-bold text-white mt-1">5,500 °C (พื้นผิว)</div>
+                        </div>
+                        <div class="p-3 rounded-2xl bg-slate-900/70 border border-slate-800/90">
+                            <span class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-weight-hanging text-sky-400"></i> แรงโน้มถ่วงเทียบโลก
+                            </span>
+                            <div id="stat-gravity" class="text-sm md:text-base font-mono font-bold text-white mt-1">27.9 G (274 m/s²)</div>
+                        </div>
+                        <div class="p-3 rounded-2xl bg-slate-900/70 border border-slate-800/90">
+                            <span class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-ruler-horizontal text-amber-400"></i> เส้นผ่านศูนย์กลาง
+                            </span>
+                            <div id="stat-diameter" class="text-sm md:text-base font-mono font-bold text-white mt-1">1,392,700 กม.</div>
+                        </div>
+                        <div class="p-3 rounded-2xl bg-slate-900/70 border border-slate-800/90">
+                            <span class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-satellite text-purple-400"></i> ดวงจันทร์บริวาร
+                            </span>
+                            <div id="stat-moons" class="text-sm md:text-base font-mono font-bold text-white mt-1">ดาวเคราะห์ 8 ดวง</div>
+                        </div>
+                        <div class="p-3 rounded-2xl bg-slate-900/70 border border-slate-800/90">
+                            <span class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-clock text-emerald-400"></i> 1 วันบนดาว (หมุนรอบตัวเอง)
+                            </span>
+                            <div id="stat-day" class="text-xs md:text-sm font-mono font-semibold text-white mt-1">25.4 วันของโลก</div>
+                        </div>
+                        <div class="p-3 rounded-2xl bg-slate-900/70 border border-slate-800/90">
+                            <span class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-circle-notch text-cyan-400"></i> 1 ปีบนดาว (โคจรรอบดวงอาทิตย์)
+                            </span>
+                            <div id="stat-year" class="text-xs md:text-sm font-mono font-semibold text-white mt-1">230 ล้านปี (รอบทางช้างเผือก)</div>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Scientific Description -->
+                    <div class="p-3.5 rounded-2xl bg-slate-900/50 border border-slate-800/80">
+                        <h4 class="text-xs font-semibold uppercase tracking-wider text-sky-400 mb-1.5 flex items-center gap-1.5">
+                            <i class="fa-solid fa-circle-info"></i> ลักษณะเด่นและจุดสังเกตเมื่อดูใกล้ๆ
+                        </h4>
+                        <p id="insp-description" class="text-xs md:text-sm text-slate-300 leading-relaxed"></p>
+                    </div>
+
+                    <!-- Atmosphere Composition Bars -->
+                    <div class="p-3.5 rounded-2xl bg-slate-900/50 border border-slate-800/80">
+                        <h4 class="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5">
+                            <i class="fa-solid fa-wind"></i> องค์ประกอบชั้นบรรยากาศ
+                        </h4>
+                        <div id="insp-atmosphere-list" class="flex flex-col gap-2 text-xs"></div>
+                    </div>
+                </div>
+
+                <!-- Sub-tab 2: Internal Structure & Cross Section -->
+                <div id="insp-content-structure" class="hidden flex-col gap-3">
+                    <div class="p-3.5 rounded-2xl bg-gradient-to-br from-amber-500/15 to-rose-500/10 border border-amber-500/30 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-xs font-bold text-amber-300">โหมดผ่าดูโครงสร้างดาว 3 มิติ</h4>
+                            <p class="text-[11px] text-slate-300">เปิดดูชั้นแกนกลาง (Core) เนื้อดาว (Mantle) และเปลือกดาวในฉาก 3D</p>
+                        </div>
+                        <button onclick="toggleCrossSection()" id="btn-cross-section-2" class="px-3 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 hover:bg-amber-400 transition shrink-0">
+                            ผ่าโครงสร้าง 3D
+                        </button>
+                    </div>
+
+                    <div id="insp-layers-container" class="flex flex-col gap-2.5"></div>
+                </div>
+
+                <!-- Sub-tab 3: How It Works & Orbital Mechanics -->
+                <div id="insp-content-howitworks" class="hidden flex-col gap-3">
+                    <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-sky-500/25">
+                        <h4 class="text-xs font-bold text-sky-300 mb-1.5 flex items-center gap-1.5">
+                            <i class="fa-solid fa-atom"></i> กลไกทางฟิสิกส์ดาราศาสตร์ของดาวดวงนี้
+                        </h4>
+                        <p id="insp-mechanics-text" class="text-xs md:text-sm text-slate-300 leading-relaxed"></p>
+                    </div>
+                    <div class="p-3.5 rounded-2xl bg-slate-900/70 border border-emerald-500/25">
+                        <h4 class="text-xs font-bold text-emerald-300 mb-1.5 flex items-center gap-1.5">
+                            <i class="fa-solid fa-satellite-dish"></i> ภารกิจสำรวจและข้อเท็จจริงน่าทึ่ง
+                        </h4>
+                        <ul id="insp-facts-list" class="text-xs text-slate-300 space-y-2 list-disc list-inside"></ul>
+                    </div>
+                </div>
+
+                <!-- Quick Action CTA to Jump to Simulation -->
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <button onclick="switchMode('humanlab')" class="p-2.5 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-medium flex items-center justify-center gap-2 transition">
+                        <i class="fa-solid fa-person-rays"></i> จำลองถ้าคนไปอยู่บนดาวนี้
+                    </button>
+                    <button onclick="switchMode('collision')" class="p-2.5 rounded-2xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center justify-center gap-2 transition">
+                        <i class="fa-solid fa-burst"></i> จำลองถ้าดาวนี้ถูกชน
+                    </button>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW 3: HUMAN SURVIVAL & WHAT-IF LAB       -->
+            <!-- ========================================== -->
+            <div id="panel-view-humanlab" class="hidden flex-col gap-4">
+                <div class="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-slate-900 border border-emerald-400/30">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                            IMAGINATION & ASTROBIOLOGY LAB
+                        </span>
+                        <span id="lab-planet-indicator" class="text-xs font-bold text-white">เป้าหมาย: โลก</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mt-1.5">จำลองการไปเยือน & สมมติฐานดัดแปลงดาว</h3>
+                    <p class="text-xs text-slate-300 mt-0.5">เลือกสิ่งที่ต้องการส่งลงไปบนดาว หรือลอง "เติมอากาศ/ปรับสภาพดาว" เพื่อดูผลลัพธ์ทางวิทยาศาสตร์</p>
+                </div>
+
+                <!-- Step 1: Select Subject to Drop on the Planet -->
+                <div>
+                    <label class="text-xs font-semibold text-slate-300 mb-2 block flex items-center gap-1.5">
+                        <i class="fa-solid fa-cube text-sky-400"></i> 1. เลือกสิ่งที่ต้องการนำไปวางบนดาวดวงนี้:
+                    </label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="selectLabSubject('human_naked')" id="sub-btn-human_naked" class="lab-sub-btn p-2.5 rounded-xl bg-sky-500/25 border border-sky-400 text-white text-xs flex flex-col items-center gap-1 transition">
+                            <span class="text-xl">🧍</span>
+                            <span class="font-medium text-[11px]">คน (ไม่ใส่ชุด)</span>
+                        </button>
+                        <button onclick="selectLabSubject('human_suit')" id="sub-btn-human_suit" class="lab-sub-btn p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-white text-xs flex flex-col items-center gap-1 transition">
+                            <span class="text-xl">🧑‍🚀</span>
+                            <span class="font-medium text-[11px]">ชุดอวกาศ NASA</span>
+                        </button>
+                        <button onclick="selectLabSubject('water')" id="sub-btn-water" class="lab-sub-btn p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-white text-xs flex flex-col items-center gap-1 transition">
+                            <span class="text-xl">💧</span>
+                            <span class="font-medium text-[11px]">น้ำบริสุทธิ์ 1 ตัน</span>
+                        </button>
+                        <button onclick="selectLabSubject('plant')" id="sub-btn-plant" class="lab-sub-btn p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-white text-xs flex flex-col items-center gap-1 transition">
+                            <span class="text-xl">🌱</span>
+                            <span class="font-medium text-[11px]">ต้นไม้/พืชสีเขียว</span>
+                        </button>
+                        <button onclick="selectLabSubject('rover')" id="sub-btn-rover" class="lab-sub-btn p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-white text-xs flex flex-col items-center gap-1 transition">
+                            <span class="text-xl">🚙</span>
+                            <span class="font-medium text-[11px]">รถสำรวจ/โลหะ</span>
+                        </button>
+                        <button onclick="selectLabSubject('sound_ball')" id="sub-btn-sound_ball" class="lab-sub-btn p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-white text-xs flex flex-col items-center gap-1 transition">
+                            <span class="text-xl">🎸</span>
+                            <span class="font-medium text-[11px]">เสียงพูด & ลูกบอล</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 2: What-If Terraforming Toggles (สมมติฐานถ้ามีอากาศ ฯลฯ) -->
+                <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800">
+                    <div class="flex items-center justify-between mb-2.5">
+                        <span class="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> 2. จำลองสมมติฐาน "ถ้าเราดัดแปลงดาวดวงนี้" (What-If)
+                        </span>
+                        <button onclick="resetTerraforming()" class="text-[11px] text-slate-400 hover:text-white underline">รีเซ็ตค่าจริง</button>
+                    </div>
+
+                    <div class="space-y-2.5">
+                        <!-- Toggle Breathable Atmosphere -->
+                        <label class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/90 cursor-pointer hover:border-sky-500/40 transition">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-300 flex items-center justify-center">
+                                    <i class="fa-solid fa-cloud-sun"></i>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-medium text-white">สมมติให้มีอากาศหายใจ (O₂ + N₂ 1 atm)</div>
+                                    <div class="text-[10px] text-slate-400">สร้างชั้นบรรยากาศแบบโลกและเพิ่มแรงดันอากาศปกติ</div>
+                                </div>
+                            </div>
+                            <input type="checkbox" id="tf-toggle-air" onchange="updateHumanLabSimulation()" class="w-4 h-4 accent-sky-400 rounded cursor-pointer">
+                        </label>
+
+                        <!-- Toggle Temperature Regulation -->
+                        <label class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/90 cursor-pointer hover:border-emerald-500/40 transition">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center">
+                                    <i class="fa-solid fa-temperature-arrow-up"></i>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-medium text-white">สมมติปรับอุณหภูมิให้อบอุ่น (25 °C)</div>
+                                    <div class="text-[10px] text-slate-400">ติดตั้งกระจกอวกาศ/ปรับเรือนกระจกให้อยู่ในเขตเอื้อชีวิต</div>
+                                </div>
+                            </div>
+                            <input type="checkbox" id="tf-toggle-temp" onchange="updateHumanLabSimulation()" class="w-4 h-4 accent-emerald-400 rounded cursor-pointer">
+                        </label>
+
+                        <!-- Toggle Magnetic Shield -->
+                        <label class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/90 cursor-pointer hover:border-purple-500/40 transition">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center">
+                                    <i class="fa-solid fa-shield-halved"></i>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-medium text-white">สมมติสร้างสนามแม่เหล็กเทียมกั้นรังสี</div>
+                                    <div class="text-[10px] text-slate-400">ป้องกันลมสุริยะและรังสีคอสมิกไม่ให้พัดชั้นบรรยากาศหลุด</div>
+                                </div>
+                            </div>
+                            <input type="checkbox" id="tf-toggle-mag" onchange="updateHumanLabSimulation()" class="w-4 h-4 accent-purple-400 rounded cursor-pointer">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Step 3: Live Simulation Result Monitor -->
+                <div id="lab-result-card" class="p-4 rounded-2xl bg-slate-950/90 border border-sky-500/40 flex flex-col gap-3">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                        <div class="flex items-center gap-2.5">
+                            <span id="lab-status-emoji" class="text-3xl">💀</span>
+                            <div>
+                                <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400">ผลการจำลองสถานะ (SIMULATION OUTPUT)</div>
+                                <h4 id="lab-status-headline" class="text-sm md:text-base font-bold text-rose-400">เสียชีวิตภายในไม่กี่วินาที</h4>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] text-slate-400 block">เวลารอดชีวิต/คงสภาพ</span>
+                            <span id="lab-survival-timer" class="font-mono text-sm font-bold text-amber-300">&lt; 2 วินาที</span>
+                        </div>
+                    </div>
+
+                    <!-- Weight & Jump Calculator for a 60kg Person -->
+                    <div class="grid grid-cols-2 gap-2 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">น้ำหนักตัวคุณบนดาวนี้ (เทียบ 60 กก. บนโลก)</span>
+                            <span id="lab-weight-calc" class="font-mono text-sm font-bold text-sky-300">1,674.0 กก.</span>
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">กระโดดได้สูง (เทียบ 50 ซม. บนโลก)</span>
+                            <span id="lab-jump-calc" class="font-mono text-sm font-bold text-emerald-300">1.8 ซม.</span>
+                        </div>
+                    </div>
+
+                    <!-- Habitability Score Meter -->
+                    <div class="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+                        <div class="flex items-center justify-between text-[11px] mb-1">
+                            <span class="text-slate-300 font-medium flex items-center gap-1.5">
+                                <i class="fa-solid fa-heart-pulse text-emerald-400"></i> ดัชนีความเอื้อต่อการอยู่อาศัย (Habitability Score)
+                            </span>
+                            <span id="lab-habitability-score" class="font-mono font-bold text-emerald-400">0%</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                            <div id="lab-habitability-bar" class="h-full bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-400 transition-all duration-500" style="width: 5%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Gravity Jump Comparison Mini-Arena -->
+                    <div class="bg-slate-900/95 p-3 rounded-xl border border-sky-500/30">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] font-semibold text-sky-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-person-arrow-up-from-line"></i> ทดลองกระโดดเทียบแรงโน้มถ่วงสด
+                            </span>
+                            <button onclick="triggerGravityJumpTest()" class="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[11px] transition active:scale-95">
+                                🚀 กดกระโดดเปรียบเทียบ!
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 h-24 bg-slate-950/90 rounded-lg border border-slate-800/80 p-2 relative overflow-hidden">
+                            <!-- Earth Reference Lane -->
+                            <div class="border-r border-slate-800/80 flex flex-col justify-between items-center relative">
+                                <span class="text-[10px] text-slate-400 font-mono">🌍 โลก (1.00G)</span>
+                                <div id="jumper-earth" class="text-xl transition-transform" style="transform: translateY(0px);">🧑‍🚀</div>
+                                <div class="w-full h-1 bg-emerald-500/40 rounded-full"></div>
+                            </div>
+                            <!-- Target Planet Lane -->
+                            <div class="flex flex-col justify-between items-center relative">
+                                <span id="jumper-target-label" class="text-[10px] text-sky-300 font-mono">🔴 ดาวเป้าหมาย</span>
+                                <div id="jumper-target" class="text-xl transition-transform" style="transform: translateY(0px);">🧑‍🚀</div>
+                                <div class="w-full h-1 bg-sky-500/40 rounded-full"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Consequence Explanation -->
+                    <div class="space-y-2 text-xs leading-relaxed">
+                        <div class="p-2.5 rounded-xl bg-slate-900/70 border-l-4 border-sky-400 text-slate-200" id="lab-primary-effect"></div>
+                        <div class="p-2.5 rounded-xl bg-slate-900/70 border-l-4 border-emerald-400 text-slate-300" id="lab-atmosphere-effect"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW 4: COSMIC COLLISION SIMULATOR         -->
+            <!-- ========================================== -->
+            <div id="panel-view-collision" class="hidden flex-col gap-4">
+                <div class="hud-glass-danger rounded-2xl p-3.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-400/30">
+                            HYPOTHESIS & IMPACT PHYSICS
+                        </span>
+                        <i class="fa-solid fa-burst text-rose-400"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mt-1.5">จำลองการชนกันของดาวเคราะห์ & ดวงอาทิตย์</h3>
+                    <p class="text-xs text-slate-300 mt-0.5">ตั้งสมมติฐานว่าหากวงโคจรแปรปรวนจนดาวพุ่งชนกัน หรือตกลงสู่ดวงอาทิตย์ จะเกิดอะไรขึ้นในอนาคต</p>
+                </div>
+
+                <!-- Quick Preset Scenarios -->
+                <div>
+                    <span class="text-[11px] text-slate-400 block mb-1.5">เลือกสถานการณ์สมมติยอดฮิต (หรือกำหนดเองด้านล่าง):</span>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button onclick="applyCollisionPreset('earth', 'mars', 25, 15)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-500/20 border border-slate-700 hover:border-rose-400/40 text-[11px] text-slate-200 transition">
+                            🌍 โลก ชน 🔴 ดาวอังคาร (กำเนิดดวงจันทร์ใหม่)
+                        </button>
+                        <button onclick="applyCollisionPreset('sun', 'earth', 65, 0)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 border border-slate-700 hover:border-amber-400/40 text-[11px] text-slate-200 transition">
+                            🌍 โลก พุ่งชน ☀️ ดวงอาทิตย์
+                        </button>
+                        <button onclick="applyCollisionPreset('jupiter', 'earth', 50, 0)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-purple-500/20 border border-slate-700 hover:border-purple-400/40 text-[11px] text-slate-200 transition">
+                            🌍 โลก พุ่งชน 🟠 ดาวพฤหัสบดี
+                        </button>
+                        <button onclick="applyCollisionPreset('earth', 'asteroid', 40, 0)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-sky-500/20 border border-slate-700 hover:border-sky-400/40 text-[11px] text-slate-200 transition">
+                            ☄️ ดาวเคราะห์น้อยยักษ์ ชน 🌍 โลก
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Body Selectors -->
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div class="p-3 rounded-2xl bg-slate-900/90 border border-slate-800">
+                        <label class="text-[11px] text-sky-400 font-semibold block mb-1.5">ดาวเป้าหมายหลัก (Target)</label>
+                        <select id="col-target-select" onchange="previewCollisionSetup()" class="w-full bg-slate-950 text-white text-xs rounded-xl p-2 border border-slate-700 outline-none focus:border-sky-400">
+                            <option value="earth">🌍 โลก (Earth)</option>
+                            <option value="sun">☀️ ดวงอาทิตย์ (Sun)</option>
+                            <option value="jupiter">🟠 ดาวพฤหัสบดี (Jupiter)</option>
+                            <option value="saturn">🪐 ดาวเสาร์ (Saturn)</option>
+                            <option value="mars">🔴 ดาวอังคาร (Mars)</option>
+                            <option value="venus">🟡 ดาวศุกร์ (Venus)</option>
+                            <option value="neptune">🔵 ดาวเนปจูน (Neptune)</option>
+                        </select>
+                    </div>
+                    <div class="p-3 rounded-2xl bg-slate-900/90 border border-slate-800">
+                        <label class="text-[11px] text-rose-400 font-semibold block mb-1.5">วัตถุที่พุ่งเข้าชน (Impactor)</label>
+                        <select id="col-impactor-select" onchange="previewCollisionSetup()" class="w-full bg-slate-950 text-white text-xs rounded-xl p-2 border border-slate-700 outline-none focus:border-rose-400">
+                            <option value="mars">🔴 ดาวอังคาร (ขนาดเท่าดาว Theia)</option>
+                            <option value="asteroid">☄️ ดาวเคราะห์น้อยล้างโลก (100 กม.)</option>
+                            <option value="mercury">⚪ ดาวพุธ (Mercury)</option>
+                            <option value="earth">🌍 โลก (Earth)</option>
+                            <option value="jupiter">🟠 ดาวพฤหัสบดี (Jupiter)</option>
+                            <option value="ice_comet">❄️ ดาวหางน้ำแข็งยักษ์</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Velocity & Impact Angle Sliders -->
+                <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">ความเร็วขณะปะทะ (Impact Velocity)</span>
+                            <span id="col-vel-label" class="font-mono text-rose-400 font-bold">30 กม./วินาที</span>
+                        </div>
+                        <input type="range" id="col-vel-slider" min="10" max="120" step="5" value="30" class="w-full" oninput="updateCollisionSliders()">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">มุมปะทะ (Impact Angle)</span>
+                            <span id="col-angle-label" class="font-mono text-amber-300 font-bold">15° (ชนเกือบตรงกลาง)</span>
+                        </div>
+                        <input type="range" id="col-angle-slider" min="0" max="60" step="5" value="15" class="w-full" oninput="updateCollisionSliders()">
+                    </div>
+                </div>
+
+                <!-- Launch & Reset Collision Buttons -->
+                <div class="flex gap-2">
+                    <button onclick="triggerCosmicCollision()" id="btn-launch-collision" class="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white font-bold text-sm shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 transition active:scale-95">
+                        <i class="fa-solid fa-meteor"></i> เริ่มจำลองการพุ่งชน 3D!
+                    </button>
+                    <button onclick="toggleCollisionSlowMo()" id="btn-col-slowmo" title="โหมดภาพช้า Slow-Motion" class="px-3 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono border border-slate-700 transition">
+                        1.0x
+                    </button>
+                    <button onclick="resetCollisionArena()" class="px-3.5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition">
+                        รีเซ็ต
+                    </button>
+                </div>
+
+                <!-- Collision Scientific Analysis Output -->
+                <div id="collision-report-card" class="p-4 rounded-2xl bg-slate-950/95 border border-rose-500/40 flex flex-col gap-3">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span class="text-[11px] font-mono uppercase text-rose-400 font-semibold flex items-center gap-1.5">
+                            <i class="fa-solid fa-wave-square"></i> ผลการคำนวณสมมติฐานการชน
+                        </span>
+                        <span id="col-energy-badge" class="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                            พลังงาน: 4.5 × 10³¹ จูล
+                        </span>
+                    </div>
+
+                    <h4 id="col-outcome-title" class="text-base font-bold text-white">พร้อมจำลองการปะทะ: กดปุ่มเริ่มเพื่อดูฉากการชน 3 มิติ</h4>
+                    <p id="col-outcome-desc" class="text-xs text-slate-300 leading-relaxed">
+                        ระบบจะจำลองแรงโน้มถ่วงดึงดูดวัตถุทั้งสองให้พุ่งเข้าหากันในอวกาศ 3 มิติ พร้อมคำนวณคลื่นกระแทก เศษซากดาว และการเปลี่ยนแปลงของระบบสุริยะ
+                    </p>
+
+                    <!-- Timeline of Future Aftermath -->
+                    <div class="space-y-2 pt-1 border-t border-slate-800/80">
+                        <span class="text-[11px] font-semibold text-sky-300 block">ลำดับเหตุการณ์ที่จะเกิดขึ้นหลังการชน:</span>
+                        <div id="col-timeline-list" class="space-y-1.5 text-xs text-slate-300"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </aside>
+
+    <!-- BOTTOM SOLAR SYSTEM PLANET DOCK -->
+    <footer class="fixed bottom-0 left-0 right-0 z-30 p-3 flex justify-center pointer-events-none">
+        <div class="hud-glass rounded-2xl p-2 flex items-center gap-1.5 md:gap-2 overflow-x-auto max-w-full pointer-events-auto">
+            <!-- Dynamically populated by JS with Sun + 8 Planets + Dwarf Planet Pluto -->
+            <div id="planet-dock-list" class="flex items-center gap-1.5 md:gap-2"></div>
+        </div>
+    </footer>
+
+    <!-- SOLAR SYSTEM KNOWLEDGE MODAL (ระบบสุริยะทำงานอย่างไร) -->
+    <div id="knowledge-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="hud-glass rounded-3xl max-w-3xl w-full max-h-[85vh] overflow-y-auto p-6 md:p-8 border border-sky-400/30 relative">
+            <button onclick="closeKnowledgeModal()" class="absolute top-5 right-5 w-9 h-9 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 flex items-center justify-center">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-2xl">
+                    🌌
+                </div>
+                <div>
+                    <span class="text-xs font-mono text-sky-400 uppercase">SOLAR SYSTEM SCIENCE GUIDE</span>
+                    <h2 class="text-xl md:text-2xl font-bold text-white">ระบบสุริยะและดวงอาทิตย์ทำงานอย่างไร?</h2>
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4 text-xs md:text-sm text-slate-300 leading-relaxed">
+                <div class="p-4 rounded-2xl bg-slate-900/80 border border-amber-500/30">
+                    <h3 class="font-bold text-amber-300 text-base mb-1.5">☀️ 1. ดวงอาทิตย์: หัวใจพลังงานนิวเคลียร์ฟิวชัน</h3>
+                    <p>ดวงอาทิตย์เป็นดาวฤกษ์ที่มีมวลคิดเป็น <strong>99.86% ของมวลทั้งหมดในระบบสุริยะ</strong> ที่แกนกลางมีอุณหภูมิสูงถึง 15 ล้านองศาเซลเซียส เกิดปฏิกิริยา <em>นิวเคลียร์ฟิวชัน (Nuclear Fusion)</em> หลอมรวมอะตอมไฮโดรเจน 600 ล้านตันต่อวินาทีให้กลายเป็นฮีเลียม และปลดปล่อยพลังงานแสงสว่างความร้อนออกมาเลี้ยงดาวเคราะห์ทุกดวง</p>
+                </div>
+                <div class="p-4 rounded-2xl bg-slate-900/80 border border-sky-500/30">
+                    <h3 class="font-bold text-sky-300 text-base mb-1.5">🪐 2. ทำไมดาวเคราะห์จึงโคจรรอบดวงอาทิตย์ไม่หลุดลอยไป?</h3>
+                    <p>การทำงานของระบบสุริยะเกิดจากสมดุลระหว่าง <strong>"แรงโน้มถ่วงของดวงอาทิตย์"</strong> ที่ดึงดาวเคราะห์เข้ามาหาศูนย์กลาง กับ <strong>"ความเร็วในการเคลื่อนที่ไปข้างหน้า (แรงเฉื่อย)"</strong> ของดาวเคราะห์ตั้งแต่กำเนิดระบบสุริยะเมื่อ 4,600 ล้านปีก่อน ทำให้ดาวเคราะห์โคจรเป็นวงรีรอบดวงอาทิตย์ตามกฎของเคปเลอร์และนิวตัน</p>
+                </div>
+                <div class="p-4 rounded-2xl bg-slate-900/80 border border-emerald-500/30">
+                    <h3 class="font-bold text-emerald-300 text-base mb-1.5">🪨 3. ดาวเคราะห์หินชั้นใน vs ดาวเคราะห์แก๊สชั้นนอก</h3>
+                    <p><strong>ดาวเคราะห์ชั้นใน 4 ดวง</strong> (พุธ, ศุกร์, โลก, อังคาร) อยู่ใกล้ดวงอาทิตย์ ความร้อนพัดแก๊สเบาออกไปหมด เหลือแต่หินและโลหะหนาแน่น ส่วน <strong>ดาวเคราะห์ชั้นนอก 4 ดวง</strong> (พฤหัสบดี, เสาร์, ยูเรนัส, เนปจูน) อยู่ไกลและเย็นจัด จึงสะสมแก๊สไฮโดรเจน ฮีเลียม และน้ำแข็งจนมีขนาดใหญ่โตมโหฬาร</p>
+                </div>
+                <div class="p-4 rounded-2xl bg-slate-900/80 border border-rose-500/30">
+                    <h3 class="font-bold text-rose-300 text-base mb-1.5">💥 4. การชนกันในอวกาศ: ผู้สร้างและผู้ทำลาย</h3>
+                    <p>การชนกันของดาวเคราะห์ไม่ใช่เรื่องไกลตัว! เมื่อ 4,500 ล้านปีก่อน ดาวเคราะห์ขนาดเท่าดาวอังคารชื่อ <strong>"ธีอา (Theia)"</strong> พุ่งชนโลกยุคแรกเศษซากจากการชนรวมตัวกันกลายเป็น <strong>"ดวงจันทร์"</strong> ของเรา และทำให้แกนโลกเอียง 23.5 องศา จนเกิดฤดูกาลที่เอื้อต่อสิ่งมีชีวิต!</p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeKnowledgeModal()" class="px-6 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-sm transition">
+                    เข้าใจแล้ว เริ่มสำรวจต่อ!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ============================================================================
+         * 1. COMPREHENSIVE SOLAR SYSTEM SCIENTIFIC DATABASE (THAI)
+         * ============================================================================ */
+        const CELESTIAL_DATA = {
+            sun: {
+                id: 'sun',
+                name: 'ดวงอาทิตย์',
+                nameEn: 'The Sun (Sol)',
+                emoji: '☀️',
+                type: 'ดาวฤกษ์สีเหลือง (G2V Star)',
+                badgeColor: 'radial-gradient(circle at 30% 30%, #fef08a, #f97316, #dc2626)',
+                heroGradient: 'linear-gradient(135deg, rgba(245, 158, 11, 0.32), rgba(15, 23, 42, 0.92))',
+                radius3D: 8.5,
+                distance3D: 0,
+                orbitSpeed: 0,
+                rotationSpeed: 0.003,
+                tilt: 0.12,
+                tempC: 5500,
+                tempDisplay: '5,500 °C (แกนกลาง 15 ล้าน °C)',
+                gravityG: 27.9,
+                gravityDisplay: '27.9 G (274 m/s²)',
+                diameterDisplay: '1,392,700 กม. (109 เท่าของโลก)',
+                moonsDisplay: 'ดาวเคราะห์ 8 ดวง + บริวารนับแสน',
+                dayDisplay: '25.4 วันโลก (ที่เส้นศูนย์สูตร)',
+                yearDisplay: '230 ล้านปี (โคจรรอบกาแล็กซี)',
+                uniqueFeature: 'เตาปฏิกรณ์นิวเคลียร์ฟิวชันขนาดยักษ์ กักเก็บมวล 99.86% ของทั้งระบบสุริยะ',
+                description: 'ดวงอาทิตย์ไม่ใช่ก้อนไฟที่ลุกไหม้จากออกซิเจน แต่เป็นลูกบอลพลาสมาขนาดมหึมาที่เปล่งแสงจากปฏิกิริยานิวเคลียร์ฟิวชัน หากซูมดูใกล้ๆ จะเห็นพื้นผิวเดือดพล่านเป็นเซลล์พาความร้อน (Granules) จุดมืดดวงอาทิตย์ (Sunspots) และเปลวสุริยะ (Solar Prominences) ที่พวยพุ่งสูงกว่าขนาดของโลกหลายสิบเท่า',
+                atmosphere: [
+                    { name: 'ไฮโดรเจน (Hydrogen - H₂)', percent: 73.4, color: '#f59e0b' },
+                    { name: 'ฮีเลียม (Helium - He)', percent: 25.0, color: '#fde047' },
+                    { name: 'ธาตุหนักอื่นๆ (O, C, Ne, Fe)', percent: 1.6, color: '#fb7185' }
+                ],
+                layers: [
+                    { name: 'แกนกลางฟิวชัน (Core)', desc: 'อุณหภูมิ 15 ล้าน °C ความดันมหาศาล หลอมไฮโดรเจนเป็นฮีเลียม', color: '#ffffff' },
+                    { name: 'เขตแผ่รังสี & พาความร้อน', desc: 'โฟตอนใช้เวลาเดินทางนับแสนปีจากแกนกลางสู่พื้นผิว', color: '#facc15' },
+                    { name: 'โฟโตสเฟียร์ & โคโรนา', desc: 'พื้นผิวที่เรามองเห็น และบรรยากาศชั้นนอกที่ร้อนถึง 1-2 ล้าน °C', color: '#ea580c' }
+                ],
+                mechanics: 'แรงโน้มถ่วงมหาศาลของดวงอาทิตย์พยายามบีบอัดตัวมันเองให้ยุบตัวลง แต่แรงดันจากปฏิกิริยานิวเคลียร์ฟิวชันดันสวนออกมาเกิดเป็น "สมดุลอุทกสถิต (Hydrostatic Equilibrium)" พร้อมปล่อยลมสุริยะสร้างเกราะเฮลิโอสเฟียร์ปกป้องระบบสุริยะทั้งหมด',
+                facts: [
+                    'แสงจากดวงอาทิตย์ใช้เวลาเดินทางมายังโลก 8 นาที 20 วินาที',
+                    'เราสามารถนำโลกใส่เข้าไปในดวงอาทิตย์ได้ถึง 1,300,000 ดวง',
+                    'อีกประมาณ 5,000 ล้านปี ดวงอาทิตย์จะขยายตัวเป็นดาวยักษ์แดง (Red Giant) กลืนกินดาวพุธและดาวศุกร์'
+                ],
+                labData: {
+                    nakedStatus: 'สลายกลายเป็นอะตอมพลาสมาทันที!',
+                    nakedTime: '0.0001 วินาที',
+                    nakedDesc: 'ก่อนที่คุณจะเข้าใกล้พื้นผิวดวงอาทิตย์ ความร้อน 5,500 °C และรังสีเอกซ์จะทำให้ร่างกายระเหิดกลายเป็นไอพลาสมาในเสี้ยววินาที และแรงโน้มถ่วง 27.9 เท่าของโลกจะกดทับร่างคุณให้แบนติดพื้นผิว',
+                    suitDesc: 'แม้แต่ชุดอวกาศที่ดีที่สุดหรือโลหะไทเทเนียม-ทังสเตน (จุดหลอมเหลว 3,422 °C) ก็จะหลอมละลายกลายเป็นไอทันที ยาน Parker Solar Probe ของ NASA ทำได้เพียงบินเฉียดชั้นโคโรนาโดยใช้เกราะคาร์บอนคอมโพสิตหนาพิเศษ',
+                    waterDesc: 'น้ำ 1 ตันจะไม่เพียงแค่เดือด แต่โมเลกุล H₂O จะถูกความร้อนฉีกพันธะเคมีแยกออกเป็นอะตอมไฮโดรเจนและออกซิเจนในสถานะพลาสมาทันที',
+                    plantDesc: 'กลายเป็นเถ้าคาร์บอนและแตกตัวเป็นอะตอมตั้งแต่ระยะห่างหลายล้านกิโลเมตร',
+                    roverDesc: 'รถสำรวจเหล็กและซิลิคอนจะหลอมละลายกลายเป็นหยดโลหะเหลวและระเหยเป็นแก๊สโลหะในพริบตา',
+                    soundDesc: 'คลื่นเสียงในพลาสมาของดวงอาทิตย์มีอยู่จริงในรูปแบบคลื่นความดันความถี่ต่ำมาก (Helioseismology) แต่ลูกบอลจะระเหิดหายไปทันที',
+                    whatIfAir: 'การเติมออกซิเจนให้ดวงอาทิตย์ไม่ได้ช่วยให้เย็นลง แต่จะกลายเป็นเชื้อเพลิงเพิ่มมวลให้ดาวฤกษ์มีแรงโน้มถ่วงและอัตราการเผาผลาญรุนแรงขึ้น!'
+                }
+            },
+            mercury: {
+                id: 'mercury',
+                name: 'ดาวพุธ',
+                nameEn: 'Mercury',
+                emoji: '⚪',
+                type: 'ดาวเคราะห์หินชั้นใน (Terrestrial)',
+                badgeColor: 'radial-gradient(circle at 30% 30%, #e2e8f0, #64748b, #334155)',
+                heroGradient: 'linear-gradient(135deg, rgba(148, 163, 184, 0.28), rgba(15, 23, 42, 0.92))',
+                radius3D: 1.5,
+                distance3D: 16,
+                orbitSpeed: 0.024,
+                rotationSpeed: 0.002,
+                tilt: 0.01,
+                tempC: 167,
+                tempDisplay: '-180 °C ถึง +430 °C',
+                gravityG: 0.38,
+                gravityDisplay: '0.38 G (3.7 m/s²)',
+                diameterDisplay: '4,879 กม. (เล็กที่สุด)',
+                moonsDisplay: '0 ดวง (ไม่มีดวงจันทร์)',
+                dayDisplay: '58.6 วันของโลก',
+                yearDisplay: '88 วันของโลก (เร็วที่สุด)',
+                uniqueFeature: 'เตาไฟแช่แข็ง: กลางวันร้อนหลอมตะกั่วละลาย กลางคืนหนาวจัดเพราะไร้ชั้นบรรยากาศ',
+                description: 'ดาวพุธมีหน้าตาคล้ายดวงจันทร์ของโลก เต็มไปด้วยหลุมอุกกาบาตนับพันแห่ง โดยเฉพาะแอ่งยักษ์ Caloris Basin และหน้าผาสูงชัน (Scarps) ที่เกิดจากแกนกลางของดาวพุธเย็นตัวและหดตัวลงเหมือนลูกเกดเหี่ยวย่น',
+                atmosphere: [
+                    { name: 'ออกซิเจนเจือจาง (Exosphere)', percent: 42, color: '#38bdf8' },
+                    { name: 'โซเดียม (Sodium)', percent: 29, color: '#f59e0b' },
+                    { name: 'ไฮโดรเจน & ฮีเลียม', percent: 29, color: '#94a3b8' }
+                ],
+                layers: [
+                    { name: 'แกนเหล็กขนาดมหึมา (Giant Iron Core)', desc: 'กินพื้นที่ถึง 85% ของรัศมีดาว! ทำให้ดาวพุธมีความหนาแน่นสูงมาก', color: '#f97316' },
+                    { name: 'ชั้นเนื้อดาวหินซิลิเกตบางๆ', desc: 'หนาเพียง 400 กม. บางกว่าโลกมาก คาดว่าเคยถูกชนในอดีต', color: '#94a3b8' },
+                    { name: 'เปลือกดาวหลุมอุกกาบาต', desc: 'ไร้แผ่นเปลือกโลกเคลื่อนที่ มีน้ำแข็งซ่อนในหลุมลึกขั้วดาวที่เงามืดชั่วนิรันดร์', color: '#cbd5e1' }
+                ],
+                mechanics: 'ดาวพุธอยู่ใกล้ดวงอาทิตย์มากจนถูกล็อกด้วยแรงไทดัลแบบ 3:2 คือหมุนรอบตัวเองครบ 3 รอบ ในขณะที่โคจรรอบดวงอาทิตย์ครบ 2 รอบ ทำให้ 1 วันสุริยะบนดาวพุธยาวนานถึง 176 วันโลก!',
+                facts: [
+                    'แม้จะอยู่ใกล้ดวงอาทิตย์ที่สุด แต่ดาวพุธไม่ใช่ดาวที่ร้อนที่สุด (ดาวศุกร์ร้อนกว่า)',
+                    'เมื่อมองจากพื้นผิวดาวพุธ ดวงอาทิตย์จะมีขนาดใหญ่กว่าที่มองจากโลกถึง 3 เท่า',
+                    'ในหลุมลึกที่ขั้วเหนือและขั้วใต้ซึ่งแสงอาทิตย์ส่องไม่ถึงเลย มีน้ำแข็งบริสุทธิ์ซ่อนอยู่!'
+                ],
+                labData: {
+                    nakedStatus: 'เสียชีวิตจากสุญญากาศและอุณหภูมิสุดขั้ว',
+                    nakedTime: 'ประมาณ 90 วินาที',
+                    nakedDesc: 'ดาวพุธแทบไม่มีอากาศเลย (เป็นสุญญากาศ) ของเหลวในร่างกายและเลือดจะเดือดกลายเป็นไอทันทีจากความดันต่ำ หากยืนฝั่งกลางวันจะถูกเผาที่ +430 °C หากยืนฝั่งกลางคืนจะแข็งตายที่ -180 °C',
+                    suitDesc: 'รอดชีวิตได้ชั่วคราวหากยืนบริเวณ "เส้นแบ่งเขตวัน-คืน (Terminator Line)" ซึ่งอุณหภูมิพอเหมาะ แต่ต้องระวังรังสีดวงอาทิตย์ที่รุนแรงกว่าโลกเกือบ 7 เท่า',
+                    waterDesc: 'ฝั่งกลางวัน: น้ำระเหยเป็นไอทันทีและถูกลมสุริยะพัดหายไปในอวกาศ ฝั่งกลางคืน: น้ำเดือดแวบเดียวจากสุญญากาศแล้วแข็งตัวเป็นก้อนน้ำแข็งแข็งแกร่งเหมือนหิน',
+                    plantDesc: 'ใบไม้จะแห้งกรอบหรือแข็งตัวทันที และไม่สามารถสังเคราะห์แสงได้เพราะไม่มีก๊าซคาร์บอนไดออกไซด์และไม่มีความดันบรรยากาศ',
+                    roverDesc: 'วงจรอิเล็กทรอนิกส์จะพังจากความร้อน +430 °C เว้นแต่ออกแบบแผ่นสะท้อนความร้อนพิเศษและวิ่งเฉพาะเขตเงามืด',
+                    soundDesc: 'เมื่อไม่มีอากาศ คุณจะไม่ได้ยินเสียงพูดเลยแม้ตะโกนสุดเสียง! ส่วนลูกบอลจะลอยไกลกว่าบนโลกเกือบ 3 เท่าเพราะแรงโน้มถ่วงเพียง 0.38G',
+                    whatIfAir: 'หากเติมบรรยากาศแบบโลกให้ดาวพุธ อากาศจะช่วยกระจายความร้อนจากฝั่งกลางวันไปฝั่งกลางคืน ทำให้อุณหภูมิสมดุลขึ้นมาก แต่เนื่องจากดาวพุธมวลน้อยและใกล้ดวงอาทิตย์ ลมสุริยะจะพัดอากาศหลุดหายไปหมดถ้าไม่เปิด "สนามแม่เหล็กเทียม" ช่วย!'
+                }
+            },
+            venus: {
+                id: 'venus',
+                name: 'ดาวศุกร์',
+                nameEn: 'Venus',
+                emoji: '🟡',
+                type: 'ดาวเคราะห์หิน (ฝาแฝดนรกของโลก)',
+                badgeColor: 'radial-gradient(circle at 30% 30%, #fef08a, #eab308, #a16207)',
+                heroGradient: 'linear-gradient(135deg, rgba(234, 179, 8, 0.3), rgba(15, 23, 42, 0.92))',
+                radius3D: 2.3,
+                distance3D: 24,
+                orbitSpeed: 0.018,
+                rotationSpeed: -0.001, // Retrograde rotation
+                tilt: 3.09,
+                tempC: 465,
+                tempDisplay: '+465 °C (ร้อนที่สุดในระบบสุริยะ)',
+                gravityG: 0.90,
+                gravityDisplay: '0.90 G (ใกล้เคียงโลกมาก)',
+                diameterDisplay: '12,104 กม. (95% ของโลก)',
+                moonsDisplay: '0 ดวง (ไม่มีดวงจันทร์)',
+                dayDisplay: '243 วันของโลก (หมุนตามเข็มนาฬิกา)',
+                yearDisplay: '225 วันของโลก (1 วันยาวนานกว่า 1 ปี!)',
+                uniqueFeature: 'ภาวะเรือนกระจกขั้นสุดขั้ว เมฆกรดกำมะถัน และความดันอากาศบดขยี้เหมือนอยู่ใต้ทะเลลึก 900 เมตร',
+                description: 'เมื่อมองจากอวกาศ ดาวศุกร์ปกคลุมด้วยเมฆสีเหลืองทองหนาทึบสะท้อนแสงอาทิตย์จนสว่างสุกใส (ดาวประจำเมือง/ดาวประกายพรึก) แต่ภายใต้เมฆกรดซัลฟิวริกนั้นคือพื้นผิวภูเขาไฟนับพันลูก ท้องฟ้าสีส้มหม่น และความร้อนที่หลอมละลายตะกั่วและสังกะสีได้สบายๆ',
+                atmosphere: [
+                    { name: 'คาร์บอนไดออกไซด์ (CO₂)', percent: 96.5, color: '#eab308' },
+                    { name: 'ไนโตรเจน (N₂)', percent: 3.5, color: '#38bdf8' },
+                    { name: 'ซัลเฟอร์ไดออกไซด์ & เมฆกรดกำมะถัน', percent: 0.02, color: '#f43f5e' }
+                ],
+                layers: [
+                    { name: 'แกนเหล็กและนิกเกิล', desc: 'คล้ายแกนโลกแต่ไม่มีการไหลเวียนสร้างสนามแม่เหล็กเพราะดาวหมุนช้ามาก', color: '#f59e0b' },
+                    { name: 'ชั้นเนื้อดาวหินร้อนระอุ', desc: 'กักเก็บความร้อนภายในและระบายออกผ่านภูเขาไฟทั่วทั้งดวง', color: '#dc2626' },
+                    { name: 'เปลือกดาวหินบะซอลต์ & บรรยากาศ 92 บาร์', desc: 'ความดันพื้นผิวสูงกว่าโลก 92 เท่า บดขยี้ยานสำรวจได้ในไม่กี่ชั่วโมง', color: '#ca8a04' }
+                ],
+                mechanics: 'ดาวศุกร์เกิดภาวะเรือนกระจกกู่ไม่กลับ (Runaway Greenhouse Effect) ก๊าซ CO₂ 96.5% กักเก็บความร้อนจากดวงอาทิตย์ไว้ทั้งหมด นอกจากนี้ดาวศุกร์ยังหมุนรอบตัวเองสวนทางกับดาวดวงอื่น (ดวงอาทิตย์ขึ้นทางทิศตะวันตก!) และ 1 วันของดาวศุกร์ยาวนานกว่า 1 ปีของมันเอง',
+                facts: [
+                    'ยาน Venera 13 ของโซเวียตที่ลงจอดบนดาวศุกร์ ทนอยู่ได้เพียง 127 นาทีก่อนถูกความร้อนและความดันบดขยี้',
+                    'ที่ความสูง 50 กม. เหนือพื้นผิวดาวศุกร์ อุณหภูมิและความดันใกล้เคียงโลกมากจนนักวิทยาศาสตร์มีแนวคิดสร้าง "เมืองลอยฟ้า (Cloud City)"',
+                    'บนดาวศุกร์มีฝนกรดกำมะถันตกลงมา แต่ระเหยกลายเป็นไอก่อนถึงพื้นดินเพราะพื้นร้อนจัด (ปรากฏการณ์ Virga)'
+                ],
+                labData: {
+                    nakedStatus: 'ถูกบดขยี้ อบสุก และกัดกร่อนพร้อมกันทันที!',
+                    nakedTime: 'น้อยกว่า 1 วินาที',
+                    nakedDesc: 'บนพื้นผิวดาวศุกร์ คุณจะเจอ 3 มหันตภัยพร้อมกัน: 1) ความดันอากาศ 92 เท่าของโลกบดขยี้ปอดและร่างกายเหมือนอยู่ก้นมหาสมุทรลึกเกือบ 1 กม. 2) อุณหภูมิ 465 °C เผาร่างกายเหมือนอยู่ในเตาอบพิซซ่าแรงสุด 3) ก๊าซพิษ CO₂ และไอระเหยกรดกำมะถัน',
+                    suitDesc: 'ชุดอวกาศปกติของ NASA จะยุบตัวและละลายภายในไม่กี่วินาที ต้องใช้ชุดเกราะเรือดำน้ำไทเทเนียมติดระบบหล่อเย็นพิเศษจึงจะอยู่ได้ไม่เกิน 1-2 ชั่วโมง',
+                    waterDesc: 'น้ำ 1 ตันจะเดือดพล่านกลายเป็นไอน้ำความดันสูงพุ่งระเบิดออกทันที และทำปฏิกิริยากับซัลเฟอร์ไดออกไซด์กลายเป็นกรดซัลฟิวริกเพิ่มเข้าไปอีก!',
+                    plantDesc: 'แม้ดาวศุกร์จะมี CO₂ ที่พืชชอบถึง 96.5% แต่ความร้อน 465 °C จะเผาต้นไม้ให้กลายเป็นถ่านคาร์บอนในพริบตา',
+                    roverDesc: 'ตะกั่วและบัดกรีในแผงวงจรไฟฟ้าจะละลายทันที ยางล้อระเหิดเป็นควัน เหลือแต่โครงเหล็กที่ถูกกรดกัดกร่อน',
+                    soundDesc: 'เพราะบรรยากาศดาวศุกร์หนาแน่นเหมือนของเหลว เสียงพูดของคุณจะทุ้มต่ำเหมือนเสียงยักษ์และเดินทางได้เร็วกว่าบนโลก! ส่วนการโยนลูกบอลจะเหมือนโยนใต้น้ำเพราะแรงต้านอากาศสูงมาก',
+                    whatIfAir: 'หากเปลี่ยนบรรยากาศ CO₂ หนาแน่นของดาวศุกร์ให้เป็น O₂ + N₂ 1 atm และปรับอุณหภูมิเป็น 25 °C ดาวศุกร์จะกลายเป็น "โลกใบที่สองที่สมบูรณ์แบบที่สุด" ทันที! เพราะแรงโน้มถ่วง 0.90G ใกล้เคียงโลกจนมนุษย์เดินได้ปกติโดยกระดูกไม่เสื่อม!'
+                }
+            },
+            earth: {
+                id: 'earth',
+                name: 'โลก',
+                nameEn: 'Earth (Terra)',
+                emoji: '🌍',
+                type: 'ดาวเคราะห์หินเอื้อชีวิต (Habitable World)',
+                badgeColor: 'radial-gradient(circle at 30% 30%, #38bdf8, #2563eb, #10b981)',
+                heroGradient: 'linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(14, 116, 144, 0.35), rgba(15, 23, 42, 0.92))',
+                radius3D: 2.5,
+                distance3D: 33,
+                orbitSpeed: 0.014,
+                rotationSpeed: 0.012,
+                tilt: 0.41, // 23.5 deg
+                tempC: 15,
+                tempDisplay: '+15 °C (สมดุลน้ำ 3 สถานะ)',
+                gravityG: 1.00,
+                gravityDisplay: '1.00 G (9.81 m/s²)',
+                diameterDisplay: '12,742 กม.',
+                moonsDisplay: '1 ดวง (ดวงจันทร์ Luna)',
+                dayDisplay: '23 ชั่วโมง 56 นาที',
+                yearDisplay: '365.25 วัน',
+                uniqueFeature: 'ดาวเคราะห์ดวงเดียวที่มีมหาสมุทรน้ำเหลวบนพื้นผิว แผ่นเปลือกโลกเคลื่อนที่ และบรรยากาศออกซิเจนอิสระ',
+                description: 'เมื่อซูมดูโลกจากอวกาศ จะเห็นความงามของ "ลูกหินสีน้ำเงิน (Pale Blue Dot)" ที่ปกคลุมด้วยมหาสมุทร 71% เมฆไอน้ำสีขาวหมุนวน ทวีปสีเขียวของป่าไม้ และแสงไฟเมืองในยามค่ำคืน โลกมีเกราะสนามแม่เหล็กที่มองไม่เห็นคอยปัดเป่าลมสุริยะ ทำให้เกิดแสงเหนือ-แสงใต้ (Aurora) ที่ขั้วโลก',
+                atmosphere: [
+                    { name: 'ไนโตรเจน (Nitrogen - N₂)', percent: 78.0, color: '#38bdf8' },
+                    { name: 'ออกซิเจน (Oxygen - O₂)', percent: 21.0, color: '#10b981' },
+                    { name: 'อาร์กอน ไอน้ำ และ CO₂', percent: 1.0, color: '#a855f7' }
+                ],
+                layers: [
+                    { name: 'แกนชั้นในเหล็กแข็ง & แกนชั้นนอกเหลว', desc: 'การหมุนวนของเหล็กเหลวร้อนจัดสร้างสนามแม่เหล็กโลก (Geodynamo)', color: '#facc15' },
+                    { name: 'ชั้นเนื้อโลก (Mantle)', desc: 'หินหนืดซิลิเกตที่พาความร้อน ขับเคลื่อนทวีปและวัฏจักรคาร์บอน', color: '#ea580c' },
+                    { name: 'เปลือกโลก มหาสมุทร & ชั้นโอโซน', desc: 'บ้านของสิ่งมีชีวิตนับล้านสายพันธุ์', color: '#10b981' }
+                ],
+                mechanics: 'โลกโคจรอยู่ในเขตเอื้อชีวิต (Goldilocks Zone) ไม่ใกล้และไม่ไกลดวงอาทิตย์เกินไป แกนโลกที่เอียง 23.5 องศาทำให้เกิดฤดูกาล และมีดวงจันทร์ขนาดใหญ่ที่ช่วยรักษาเสถียรภาพของแกนหมุนโลกไม่ให้ส่ายไปมา',
+                facts: [
+                    'โลกเป็นดาวเคราะห์หินที่มีความหนาแน่นเฉลี่ยสูงที่สุดในระบบสุริยะ (5.51 g/cm³)',
+                    'ออกซิเจน 21% บนโลกไม่ได้มีมาตั้งแต่แรก แต่ถูกสร้างขึ้นโดยแบคทีเรียสังเคราะห์แสง (Cyanobacteria) เมื่อกว่า 2,400 ล้านปีก่อน',
+                    'โลกกำลังเคลื่อนที่รอบดวงอาทิตย์ด้วยความเร็วสูงถึง 107,000 กม./ชั่วโมง โดยที่เราไม่รู้สึกตัว!'
+                ],
+                labData: {
+                    nakedStatus: 'ดำรงชีวิตได้อย่างสมบูรณ์แบบ! (บ้านของเรา)',
+                    nakedTime: 'ตลอดอายุขัย (~80+ ปี)',
+                    nakedDesc: 'ร่างกายของมนุษย์วิวัฒนาการมาเพื่อความดันอากาศ 1 บาร์ แรงโน้มถ่วง 1G และออกซิเจน 21% ของโลกโดยเฉพาะ คุณสามารถหายใจ ดื่มน้ำ และเดินเล่นได้อย่างสบาย',
+                    suitDesc: 'ปลอดภัย 100% แต่คุณจะรู้สึกร้อนและอึดอัดเพราะชุดอวกาศมีน้ำหนักมากถึง 120 กก. บนพื้นโลก',
+                    waterDesc: 'คงสถานะเป็นน้ำเหลวใสสะอาด ไหลลงสู่แหล่งน้ำและหมุนเวียนในวัฏจักรน้ำ (ระเหยเป็นเมฆและตกลงมาเป็นฝน)',
+                    plantDesc: 'เจริญเติบโตงอกงาม ดูดซับ CO₂ และคายออกซิเจนออกมาสร้างระบบนิเวศ',
+                    roverDesc: 'ทำงานได้เต็มประสิทธิภาพ 100%',
+                    soundDesc: 'เสียงพูดเดินทางในอากาศด้วยความเร็ว 343 เมตร/วินาที ชัดเจนแจ่มใส ลูกบอลเด้งตามแรงโน้มถ่วงมาตรฐาน 9.8 m/s²',
+                    whatIfAir: 'โลกมีบรรยากาศ อุณหภูมิ และสนามแม่เหล็กที่สมบูรณ์แบบอยู่แล้ว การรักษาสมดุลไม่ให้เกิดภาวะโลกร้อนเกินไปจึงสำคัญที่สุด!'
+                }
+            },
+            mars: {
+                id: 'mars',
+                name: 'ดาวอังคาร',
+                nameEn: 'Mars',
+                emoji: '🔴',
+                type: 'ดาวเคราะห์หินสีแดง (The Red Planet)',
+                badgeColor: 'radial-gradient(circle at 30% 30%, #fca5a5, #ef4444, #991b1b)',
+                heroGradient: 'linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(15, 23, 42, 0.92))',
+                radius3D: 1.9,
+                distance3D: 43,
+                orbitSpeed: 0.011,
+                rotationSpeed: 0.0115,
+                tilt: 0.44, // 25 deg
+                tempC: -63,
+                tempDisplay: '-63 °C (หนาวเย็นแบบทะเลทรายขั้วโลก)',
+                gravityG: 0.38,
+                gravityDisplay: '0.38 G (3.72 m/s²)',
+                diameterDisplay: '6,779 กม. (ครึ่งหนึ่งของโลก)',
+                moonsDisplay: '2 ดวง (โฟบอส & ดีมอส)',
+                dayDisplay: '24 ชั่วโมง 37 นาที (ใกล้เคียงโลกมาก!)',
+                yearDisplay: '687 วันของโลก',
+                uniqueFeature: 'ภูเขาไฟโอลิมปัสที่สูงที่สุดในระบบสุริยะ (21 กม.) หุบเขามาริเนอริส และพายุฝุ่นสนิมเหล็กครอบคลุมทั้งดวง',
+                description: 'พื้นผิวดาวอังคารเต็มไปด้วยฝุ่นเหล็กออกไซด์ (สนิมเหล็ก) จึงมองเห็นเป็นสีส้มแดง มีขั้วน้ำแข็งและน้ำแข็งแห้งสีขาวที่ขั้วเหนือ-ใต้ ในอดีตเมื่อ 3,500 ล้านปีก่อน ดาวอังคารเคยมีแม่น้ำและมหาสมุทรไหลเชี่ยว ก่อนที่สนามแม่เหล็กของดาวจะดับลงและลมสุริยะพัดบรรยากาศหายไปเกือบหมด',
+                atmosphere: [
+                    { name: 'คาร์บอนไดออกไซด์ (CO₂)', percent: 95.3, color: '#ef4444' },
+                    { name: 'ไนโตรเจน & อาร์กอน', percent: 4.5, color: '#f59e0b' },
+                    { name: 'ออกซิเจนและไอน้ำเจือจาง', percent: 0.2, color: '#38bdf8' }
+                ],
+                layers: [
+                    { name: 'แกนเหล็ก นิกเกิล และกำมะถัน', desc: 'แกนดาวเย็นตัวลงทำให้ดาวอังคารสูญเสียสนามแม่เหล็กระดับดวงดาว', color: '#f97316' },
+                    { name: 'ชั้นเนื้อดาวซิลิเกต', desc: 'เคยสร้างภูเขาไฟยักษ์ Olympus Mons ที่ใหญ่กว่าภูเขาไฟเอเวอเรสต์ 3 เท่า', color: '#dc2626' },
+                    { name: 'เปลือกดาวฝุ่นสนิมเหล็ก & น้ำแข็งใต้ดิน', desc: 'มีความดันอากาศเพียง 0.6% ของโลก', color: '#b91c1c' }
+                ],
+                mechanics: 'เพราะดาวอังคารมีแกนเอียง 25.2 องศา และหมุนรอบตัวเอง 24 ชม. 37 นาที มันจึงมี "ฤดูกาล" และกลางวัน-กลางคืนเหมือนโลกมากที่สุด แต่บรรยากาศที่บางเฉียบเพียง 0.006 บาร์ ทำให้ไม่สามารถกักเก็บความร้อนไว้ได้',
+                facts: [
+                    'พระอาทิตย์ตกดินบนดาวอังคารมีสี "ฟ้าคราม" (ตรงข้ามกับโลก) เพราะฝุ่นละเอียดกระเจิงแสงสีฟ้าเข้าสู่ตาผู้มอง',
+                    'ดาวอังคารเป็นดาวเคราะห์ดวงเดียวที่มนุษย์ส่งหุ่นยนต์ Rover (เช่น Curiosity, Perseverance) ไปวิ่งสำรวจทำงานอยู่ตลอดเวลา',
+                    'หุบเขายักษ์ Valles Marineris ยาวถึง 4,000 กม. ยาวพอๆ กับทวีปอเมริกาเหนือทั้งทวีป!'
+                ],
+                labData: {
+                    nakedStatus: 'เสียชีวิตจากความดันต่ำและขาดออกซิเจน',
+                    nakedTime: 'ประมาณ 1 - 2 นาที',
+                    nakedDesc: 'ความดันอากาศบนดาวอังคารต่ำกว่ายอดเขาเอเวอเรสต์มาก (ต่ำกว่าขีดจำกัด Armstrong Limit) น้ำลาย น้ำตา และความชื้นในปอดจะเดือดเป็นฟองทันทีแม้ที่อุณหภูมิ -63 °C และคุณจะหมดสติจากการขาดออกซิเจนภายใน 15 วินาที',
+                    suitDesc: 'รอดชีวิตและเดินสำรวจได้ยอดเยี่ยม! นักบินอวกาศจะรู้สึกตัวเบาหวิว (คนหนัก 60 กก. จะหนักเพียง 22.8 กก.) กระโดดได้สูงและไกลมาก เป้าหมายหลักของการตั้งอาณานิคมมนุษย์!',
+                    waterDesc: 'เนื่องจากความดันอากาศต่ำมาก น้ำเหลวจะเดือดกลายเป็นฟองและแข็งตัวเป็นน้ำแข็งไปพร้อมๆ กัน (Triple Point of Water) กลายเป็นก้อนน้ำแข็งฝุ่นสีแดง',
+                    plantDesc: 'พืชปลูกกลางแจ้งไม่ได้เพราะหนาวจัดและไร้ความดันอากาศ แต่หากปลูกในโดมเรือนกระจกอัดอากาศ ดินดาวอังคารที่ล้างสารเปอร์คลอเรตแล้วสามารถปลูกมันฝรั่งและพืชได้จริง!',
+                    roverDesc: 'ทำงานได้ดีเยี่ยม! (เหมือนหุ่น Perseverance) ต้องระวังเพียงฝุ่นละเอียดสีแดงที่มาเกาะแผงโซลาร์เซลล์และอุณหภูมิ -63 °C ยามค่ำคืน',
+                    soundDesc: 'บรรยากาศ CO₂ ที่บางเบาทำให้เสียงเดินทางช้าลง (240 m/s) และเสียงแหลมจะถูกดูดกลืนหายไปไวมาก คุณจะได้ยินแต่เสียงทุ้มเบาๆ ในระยะไม่กี่เมตร',
+                    whatIfAir: 'นี่คือโครงการ "Terraforming Mars" ในฝันของมนุษยชาติ! หากเราเติมอากาศ O₂/N₂ ปรับอุณหภูมิให้อุ่นขึ้น และสร้างสนามแม่เหล็กเทียมกั้นลมสุริยะ น้ำแข็งที่ขั้วดาวอังคารจะละลายกลายเป็นมหาสมุทร และมนุษย์จะเดินถอดหมวกอวกาศภายใต้ท้องฟ้าดาวอังคารได้จริง!'
+                }
+            },
+            jupiter: {
+                id: 'jupiter',
+                name: 'ดาวพฤหัสบดี',
+                nameEn: 'Jupiter',
+                emoji: '🟠',
+                type: 'ดาวเคราะห์แก๊สยักษ์ (Gas Giant)',
+                badgeColor: 'radial-gradient(circle at 30% 30%, #fed7aa, #ea580c, #9a3412)',
+                heroGradient: 'linear-gradient(135deg, rgba(234, 88, 12, 0.32), rgba(15, 23, 42, 0.92))',
+                radius3D: 5.2,
+                distance3D: 58,
+                orbitSpeed: 0.007,
+                rotationSpeed: 0.028, // Fastest rotation!
+                tilt: 0.05,
+                tempC: -110,
+                tempDisplay: '-110 °C (ยอดเมฆแอมโมเนีย)',
+                gravityG: 2.53,
+                gravityDisplay: '2.53 G (24.79 m/s²)',
+                diameterDisplay: '139,820 กม. (ใหญ่กว่าโลก 11 เท่า)',
+                moonsDisplay: '95 ดวง (แกนีมีด, ยูโรปา, ไอโอ, คัลลิสโต)',
+                dayDisplay: '9 ชั่วโมง 55 นาที (หมุนเร็วที่สุด!)',
+                yearDisplay: '11.86 ปีของโลก',
+                uniqueFeature: 'พี่ใหญ่แห่งระบบสุริยะ พายุจุดแดงใหญ่ (Great Red Spot) ที่พัดมานานกว่า 300 ปี และไม่มีพื้นผิวดินให้เหยียบ!',
+                description: 'ดาวพฤหัสบดีมีมวลมากกว่าดาวเคราะห์ทุกดวงในระบบสุริยะรวมกันถึง 2.5 เท่า! เมื่อซูมดูใกล้ๆ จะเห็นแถบเมฆแอมโมเนียหลากสีสันที่หมุนสวนทางกันด้วยความเร็วลมกว่า 500 กม./ชม. และพายุหมุนรูปไข่สีแดงส้ม "จุดแดงใหญ่" ที่มีขนาดใหญ่กว่าโลกทั้งใบ',
+                atmosphere: [
+                    { name: 'ไฮโดรเจน (Hydrogen - H₂)', percent: 89.8, color: '#f97316' },
+                    { name: 'ฮีเลียม (Helium - He)', percent: 10.2, color: '#fde047' },
+                    { name: 'มีเทน แอมโมเนีย และไอน้ำ', percent: 0.1, color: '#38bdf8' }
+                ],
+                layers: [
+                    { name: 'แกนหินและน้ำแข็งความดันสูง (Fuzzy Core)', desc: 'ร้อนถึง 24,000 °C ร้อนกว่าพื้นผิวดวงอาทิตย์!', color: '#38bdf8' },
+                    { name: 'มหาสมุทรไฮโดรเจนเหลวโลหะ (Metallic Hydrogen)', desc: 'ความดันมหาศาลบีบแก๊สไฮโดรเจนให้กลายเป็นโลหะเหลวที่นำไฟฟ้าได้!', color: '#f59e0b' },
+                    { name: 'ชั้นบรรยากาศเมฆแอมโมเนียและพายุ', desc: 'ไม่มีพื้นผิวดินแข็ง ค่อยๆ หนาแน่นขึ้นจากแก๊สเป็นของเหลว', color: '#ea580c' }
+                ],
+                mechanics: 'ดาวพฤหัสบดีหมุนรอบตัวเองเร็วที่สุดในระบบสุริยะ (ไม่ถึง 10 ชั่วโมงต่อรอบ) ทำให้รูปทรงของดาวแป้นออกตรงเส้นศูนย์สูตร และสร้างสนามแม่เหล็กที่รุนแรงกว่าโลกถึง 20,000 เท่า นอกจากนี้แรงโน้มถ่วงของมันยังทำหน้าที่เป็น "โล่พิทักษ์โลก" คอยเหวี่ยงหรือดูดดาวหางไม่ให้พุ่งเข้ามาชนโลก',
+                facts: [
+                    'ในปี 1994 ดาวหาง Shoemaker-Levy 9 ถูกแรงโน้มถ่วงดาวพฤหัสบดีฉีกเป็น 21 ชิ้นแล้วพุ่งชนดาวพฤหัสบดี เกิดรอยแผลไฟขนาดเท่าโลก!',
+                    'ดวงจันทร์ "ยูโรปา (Europa)" ของดาวพฤหัสบดี มีมหาสมุทรน้ำเค็มซ่อนอยู่ใต้เปลือกน้ำแข็ง ซึ่งอาจมีสิ่งมีชีวิตอาศัยอยู่',
+                    'หากดาวพฤหัสบดีมีมวลมากกว่านี้อีกประมาณ 80 เท่า มันจะจุดปฏิกิริยานิวเคลียร์ฟิวชันกลายเป็นดาวฤกษ์ดวงที่ 2 ได้เลย!'
+                ],
+                labData: {
+                    nakedStatus: 'ร่วงหล่นลงไปในพายุแก๊สไร้ก้นบึ้งและถูกความดันบดขยี้',
+                    nakedTime: 'หมดสติใน 10 วินาที',
+                    nakedDesc: 'ดาวพฤหัสบดีไม่มีพื้นดินให้ยืน! คุณจะร่วงหล่นทะลุชั้นเมฆแอมโมเนียที่หนาว -110 °C ด้วยแรงโน้มถ่วง 2.53G (ตัวคุณหนักขึ้น 2.5 เท่า) ขาดออกซิเจน และยิ่งตกลงไปลึกเท่าไหร่ ความดันและอุณหภูมิจะพุ่งสูงขึ้นจนบดขยี้และหลอมละลายทุกอย่าง',
+                    suitDesc: 'ต่อให้ใส่ชุดอวกาศ คุณก็จะจมดิ่งลงไปเรื่อยๆ ผ่านพายุฟ้าผ่าที่รุนแรงกว่าโลก 1,000 เท่า ที่ความลึกเพียง 1,000 กม. ความดันจะบดขยี้ชุดอวกาศเหมือนบีบกระป๋องน้ำอัดลม (เหมือนยานสำรวจ Galileo Probe ที่ถูกบดสลายในปี 1995)',
+                    waterDesc: 'กลายเป็นลูกเห็บน้ำแข็งแอมโมเนียตกลงไปในชั้นบรรยากาศลึก แล้วระเหยกลายเป็นไอน้ำความดันสูงในชั้นไฮโดรเจนร้อน',
+                    plantDesc: 'ถูกพายุความเร็ว 600 กม./ชม. ฉีกเป็นชิ้นๆ และจมลงสู่ความมืดมิดใต้ชั้นเมฆ',
+                    roverDesc: 'ไม่สามารถจอดได้เพราะไม่มีพื้นดิน! รถสำรวจจะร่วงหล่นลงไปจนถูกความดันหลายล้านบาร์บดขยี้เป็นเศษอะตอม',
+                    soundDesc: 'ในชั้นบรรยากาศไฮโดรเจน เสียงพูดของคุณจะแหลมสูงเหมือนสูดแก๊สฮีเลียมลูกโป่งสวรรค์! ส่วนลูกบอลจะตกลงอย่างรวดเร็วด้วยความเร่ง 24.8 m/s²',
+                    whatIfAir: 'แม้จะสร้างชั้นออกซิเจนที่ระดับความสูงความดัน 1 บาร์ แต่เนื่องจากดาวพฤหัสบดีไม่มีพื้นผิวดินแข็ง มนุษย์ต้องอาศัยอยู่บน "บอลลูนหรือสถานีลอยฟ้า" เท่านั้น และต้องทนกับแรงโน้มถ่วง 2.53G ที่ทำให้เดินแทบไม่ไหว!'
+                }
+            },
+            saturn: {
+                id: 'saturn',
+                name: 'ดาวเสาร์',
+                nameEn: 'Saturn',
+                emoji: '🪐',
+                type: 'ดาวเคราะห์แก๊สยักษ์พร้อมวงแหวน (Ringed Gas Giant)',
+                badgeColor: 'radial-gradient(circle at 30% 30%, #fef08a, #d97706, #78350f)',
+                heroGradient: 'linear-gradient(135deg, rgba(217, 119, 6, 0.32), rgba(15, 23, 42, 0.92))',
+                radius3D: 4.4,
+                distance3D: 76,
+                orbitSpeed: 0.005,
+                rotationSpeed: 0.024,
+                tilt: 0.47, // 26.7 deg
+                tempC: -140,
+                tempDisplay: '-140 °C',
+                gravityG: 1.06,
+                gravityDisplay: '1.06 G (10.44 m/s²)',
+                diameterDisplay: '116,460 กม. (ไม่รวมวงแหวน)',
+                moonsDisplay: '146 ดวง (มากที่สุด! เช่น ไททัน, เอนเซลาดัส)',
+                dayDisplay: '10 ชั่วโมง 33 นาที',
+                yearDisplay: '29.4 ปีของโลก',
+                uniqueFeature: 'อัญมณีแห่งระบบสุริยะ: วงแหวนน้ำแข็งกว้าง 282,000 กม. พายุหกเหลี่ยมที่ขั้วเหนือ และมีความหนาแน่นน้อยกว่าน้ำ!',
+                description: 'เมื่อซูมเข้าไปดูดาวเสาร์ใกล้ๆ จะเห็นความมหัศจรรย์ของระบบวงแหวนที่ไม่ได้เป็นแผ่นแข็ง แต่ประกอบด้วยก้อนน้ำแข็งบริสุทธิ์ 99% ตั้งแต่มวลขนาดเม็ดทรายไปจนถึงภูเขาน้ำแข็งนับพันล้านก้อนที่โคจรเรียงตัวกันอย่างเป็นระเบียบ ที่ขั้วเหนือของดาวเสาร์ยังมีพายุหมุนทรง "หกเหลี่ยมเรขาคณิต (Saturn Hexagon)" ที่น่าทึ่ง',
+                atmosphere: [
+                    { name: 'ไฮโดรเจน (Hydrogen - H₂)', percent: 96.3, color: '#eab308' },
+                    { name: 'ฮีเลียม (Helium - He)', percent: 3.25, color: '#fde047' },
+                    { name: 'มีเทนและแอมโมเนีย', percent: 0.45, color: '#38bdf8' }
+                ],
+                layers: [
+                    { name: 'แกนหินและโลหะหนาแน่น', desc: 'มีมวลประมาณ 10-20 เท่าของโลก อยู่ใจกลางดาว', color: '#f59e0b' },
+                    { name: 'ชั้นไฮโดรเจนเหลวโลหะ & ฝนฮีเลียม', desc: 'เกิดฝนฮีเลียมเหลวและฝนเพชรตกลงสู่แกนกลาง', color: '#eab308' },
+                    { name: 'บรรยากาศสีทองและระบบวงแหวนน้ำแข็ง', desc: 'วงแหวนกว้าง 282,000 กม. แต่บางเพียง 10-30 เมตรเท่านั้น!', color: '#fef08a' }
+                ],
+                mechanics: 'วงแหวนของดาวเสาร์เกิดจากดวงจันทร์น้ำแข็งหรือดาวหางในอดีตที่เข้ามาใกล้ดาวเสาร์เกิน "ขีดจำกัดโรช (Roche Limit)" จนถูกแรงไทดัลโน้มถ่วงของดาวเสาร์ฉีกกระชากเป็นชิ้นเล็กชิ้นน้อยกระจายตัวเป็นวงแหวน',
+                facts: [
+                    'ดาวเสาร์มีความหนาแน่นเฉลี่ยเพียง 0.687 g/cm³ (น้อยกว่าน้ำซึ่งเท่ากับ 1.0) หากมีอ่างน้ำที่ใหญ่พอ ดาวเสาร์จะลอยน้ำได้!',
+                    'ดวงจันทร์ "ไททัน (Titan)" ของดาวเสาร์ มีชั้นบรรยากาศหนาแน่นและมีทะเลสาบมีเทนเหลวบนพื้นผิว!',
+                    'วงแหวนของดาวเสาร์กำลังค่อยๆ จางหายไป (Ring Rain) โดยน้ำแข็งตกลงสู่ดาวเสาร์และจะหายไปในอีก 100-300 ล้านปีข้างหน้า'
+                ],
+                labData: {
+                    nakedStatus: 'หนาวแข็ง ขาดอากาศ และจมลงสู่ชั้นแก๊สลึก',
+                    nakedTime: 'ประมาณ 10 - 15 วินาที',
+                    nakedDesc: 'เช่นเดียวกับดาวพฤหัสบดี ดาวเสาร์เป็นดาวเคราะห์แก๊สที่ไม่มีพื้นดินให้เหยียบ ความหนาว -140 °C และพายุความเร็ว 1,800 กม./ชม. จะพัดร่างคุณปลิวไปในเมฆแอมโมเนียก่อนจมลงสู่ชั้นความดันสูง',
+                    suitDesc: 'หากคุณลอยตัวใกล้ก้อนน้ำแข็งใน "วงแหวนดาวเสาร์" ด้วยชุดอวกาศ คุณจะได้เห็นวิวที่สวยงามที่สุดในจักรวาล! แต่ถ้ากระโดดลงไปในตัวดาวเสาร์ คุณจะจมลงไปจนถูกความดันบดขยี้เช่นกัน',
+                    waterDesc: 'หากเทน้ำในวงแหวนดาวเสาร์ น้ำจะแข็งตัวกลายเป็นก้อนผลึกน้ำแข็งแวววาวและโคจรรอบดาวเสาร์ร่วมกับวงแหวนตลอดไป!',
+                    plantDesc: 'แข็งตัวเป็นน้ำแข็งเปราะบางทันทีจากอุณหภูมิ -140 °C',
+                    roverDesc: 'วิ่งบนก้อนน้ำแข็งก้อนใหญ่ในวงแหวนได้ แต่ไม่สามารถลงจอดบนตัวดาวเสาร์ได้เพราะเป็นแก๊ส',
+                    soundDesc: 'ที่น่าทึ่งคือที่ระดับความดัน 1 บาร์บนดาวเสาร์ แรงโน้มถ่วงมีค่า 1.06G (ใกล้เคียงโลกมาก!) หากลอยอยู่ในบอลลูน คุณจะรู้สึกหนักเท่าอยู่บนโลกเกือบเป๊ะ!',
+                    whatIfAir: 'หากสร้างเมืองลอยฟ้าที่มีอากาศหายใจและอุณหภูมิ 25 °C ที่ระดับความสูง 1 บาร์ของดาวเสาร์ มนุษย์จะเดินเหินด้วยแรงโน้มถ่วง 1.06G ได้สบายเหมือนอยู่บ้าน พร้อมชมวิววงแหวนยักษ์พาดผ่านท้องฟ้า!'
+                }
+            },
+            uranus: {
+                id: 'uranus',
+                name: 'ดาวยูเรนัส',
+                nameEn: 'Uranus',
+                emoji: '🩵',
+                type: 'ดาวเคราะห์น้ำแข็งยักษ์ (Ice Giant)',
+                badgeColor: 'radial-gradient(circle at 30% 30%, #a5f3fc, #06b6d4, #0e7490)',
+                heroGradient: 'linear-gradient(135deg, rgba(6, 182, 212, 0.32), rgba(15, 23, 42, 0.92))',
+                radius3D: 3.4,
+                distance3D: 94,
+                orbitSpeed: 0.0032,
+                rotationSpeed: 0.016,
+                tilt: 1.70, // 97.77 deg sideways!
+                tempC: -224,
+                tempDisplay: '-224 °C (หนาวเย็นที่สุดในระบบสุริยะ!)',
+                gravityG: 0.89,
+                gravityDisplay: '0.89 G (8.69 m/s²)',
+                diameterDisplay: '50,724 กม. (ใหญ่กว่าโลก 4 เท่า)',
+                moonsDisplay: '28 ดวง (ตั้งชื่อตามตัวละครเชกสเปียร์)',
+                dayDisplay: '17 ชั่วโมง 14 นาที',
+                yearDisplay: '84 ปีของโลก',
+                uniqueFeature: 'ดาวเคราะห์ที่ "นอนตะแคงกลิ้ง" โคจรรอบดวงอาทิตย์ (แกนเอียง 98 องศา) และมีฝนเพชรตกภายในดาว!',
+                description: 'ดาวยูเรนัสมีสีฟ้าอมเขียวพาสเทลที่สวยงาม ซึ่งเกิดจากก๊าซมีเทน (Methane) ในชั้นบรรยากาศดูดกลืนแสงสีแดงจากดวงอาทิตย์และสะท้อนแสงสีฟ้าออกมา ความพิเศษที่สุดคือแกนหมุนของมันเอียงถึง 97.77 องศา ทำให้มันดูเหมือนลูกบอลที่กลิ้งตะแคงไปตามวงโคจร พร้อมวงแหวนสีคล้ำแนวตั้ง 13 วง',
+                atmosphere: [
+                    { name: 'ไฮโดรเจน (H₂)', percent: 82.5, color: '#22d3ee' },
+                    { name: 'ฮีเลียม (He)', percent: 15.2, color: '#38bdf8' },
+                    { name: 'มีเทน (CH₄ - ให้สีฟ้าคราม)', percent: 2.3, color: '#06b6d4' }
+                ],
+                layers: [
+                    { name: 'แกนหินซิลิเกตและเหล็กขนาดเล็ก', desc: 'อยู่ใจกลางดาว ล้อมรอบด้วยความดันมหาศาล', color: '#64748b' },
+                    { name: 'ชั้นเนื้อดาวน้ำแข็งร้อนความดันสูง (Icy Mantle)', desc: 'ของไหลหนาแน่นของน้ำ แอมโมเนีย และมีเทน พร้อมฝนเพชรแท้ตกสู่แกนกลาง!', color: '#0284c7' },
+                    { name: 'บรรยากาศมีเทนสีฟ้าคราม & กลิ่นไข่เน่า', desc: 'เมฆชั้นบนมีไฮโดรเจนซัลไฟด์ (H₂S) และหนาวถึง -224 °C', color: '#67e8f9' }
+                ],
+                mechanics: 'นักดาราศาสตร์เชื่อว่าในยุคก่อกำเนิดระบบสุริยะ ดาวยูเรนัสเคยถูกดาวเคราะห์หินขนาดใหญ่กว่าโลก 2 เท่าพุ่งชนอย่างจัง! แรงปะทะทำให้แกนของดาวยูเรนัสพลิกตะแคง 98 องศา ทำให้ขั้วเหนือของมันหันรับแสงอาทิตย์นาน 42 ปีโลก และมืดมิดอีก 42 ปีโลก!',
+                facts: [
+                    'ดาวยูเรนัสมีอุณหภูมิต่ำสุดถึง -224 °C หนาวกว่าดาวเนปจูนที่อยู่ไกลกว่า เพราะแกนดาวยูเรนัสแทบไม่ปล่อยความร้อนภายในออกมาเลย',
+                    'ภายใต้ความดันสูงในชั้นเนื้อดาว คาร์บอนจากมีเทนถูกบีบอัดกลายเป็น "ฝนเพชรแท้" ตกลงสู่แกนกลาง!',
+                    'ก๊าซในเมฆชั้นบนของดาวยูเรนัสมีไฮโดรเจนซัลไฟด์ (H₂S) ซึ่งมีกลิ่นเหมือนไข่เน่า!'
+                ],
+                labData: {
+                    nakedStatus: 'แข็งเป็นน้ำแข็งแก้วในพริบตาที่ -224 °C',
+                    nakedTime: 'น้อยกว่า 2 วินาที',
+                    nakedDesc: 'ดาวยูเรนัสหนาวเย็นที่สุดในระบบสุริยะ (-224 °C เกือบถึงศูนย์สัมบูรณ์!) ทันทีที่สัมผัสบรรยากาศ ร่างกายจะถูกแช่แข็งเหมือนจุ่มไนโตรเจนเหลว ได้กลิ่นไข่เน่าแวบเดียวก่อนจมลงไปในมหาสมุทรน้ำแข็งความดันสูง',
+                    suitDesc: 'ชุดอวกาศทั่วไปจะสูญเสียความยืดหยุ่นและแตกร้าวจากความเย็นจัด ต้องใช้ชุดฮีตเตอร์พลังงานนิวเคลียร์และบอลลูนลอยตัว เพราะไม่มีพื้นดินแข็งให้ยืน',
+                    waterDesc: 'น้ำ 1 ตันจะแข็งตัวทันทีด้วยความเร็วสูงจนเกิดการระเบิดจากการขยายตัวของน้ำแข็ง (Cryogenic Shatter) แข็งแกร่งยิ่งกว่าคอนกรีตเสริมเหล็ก',
+                    plantDesc: 'เซลล์พืชจะแข็งเป็นผลึกน้ำแข็งและแตกสลายเมื่อแตะโดนเหมือนดอกกุหลาบแช่ไนโตรเจนเหลว',
+                    roverDesc: 'แบตเตอรี่เคมีทุกชนิดจะหยุดทำงานทันทีที่ -224 °C โลหะเปราะแตกง่าย ต้องใช้พลังงานนิวเคลียร์ RTG เท่านั้น',
+                    soundDesc: 'แรงโน้มถ่วงบนดาวยูเรนัสคือ 0.89G (เบากว่าโลกนิดเดียว!) หากยืนบนแพลตฟอร์มลอยฟ้า คุณจะรู้สึกตัวเบาลง 11% เคลื่อนไหวได้คล่องแคล่วมาก',
+                    whatIfAir: 'หากปรับชั้นบรรยากาศส่วนบนให้มีออกซิเจนและอบอุ่น 25 °C บนบอลลูนลอยฟ้า มนุษย์จะเดินได้สบายมากด้วยแรงโน้มถ่วง 0.89G แต่ฤดูกาลจะแปลกประหลาดสุดๆ เพราะกลางวันจะยาวนาน 42 ปีติดต่อกัน!'
+                }
+            },
+            neptune: {
+                id: 'neptune',
+                name: 'ดาวเนปจูน',
+                nameEn: 'Neptune',
+                emoji: '🔵',
+                type: 'ดาวเคราะห์น้ำแข็งยักษ์ (The Windy Ice Giant)',
+                badgeColor: 'radial-gradient(circle at 30% 30%, #60a5fa, #1d4ed8, #1e1b4b)',
+                heroGradient: 'linear-gradient(135deg, rgba(29, 78, 216, 0.36), rgba(15, 23, 42, 0.92))',
+                radius3D: 3.3,
+                distance3D: 110,
+                orbitSpeed: 0.0022,
+                rotationSpeed: 0.017,
+                tilt: 0.49,
+                tempC: -214,
+                tempDisplay: '-214 °C',
+                gravityG: 1.14,
+                gravityDisplay: '1.14 G (11.15 m/s²)',
+                diameterDisplay: '49,244 กม.',
+                moonsDisplay: '16 ดวง (ดวงจันทร์ไทรทันมีภูเขาไฟน้ำแข็ง)',
+                dayDisplay: '16 ชั่วโมง 6 นาที',
+                yearDisplay: '164.8 ปีของโลก',
+                uniqueFeature: 'พายุลมความเร็วเหนือเสียง (2,100 กม./ชม.) เร็วที่สุดในระบบสุริยะ และถูกค้นพบด้วยการคำนวณคณิตศาสตร์!',
+                description: 'ดาวเนปจูนเป็นดาวเคราะห์ที่อยู่ไกลดวงอาทิตย์ที่สุด มีสีน้ำเงินเข้มจัดจ้าน มีเมฆมีเทนสีขาวพัดผ่านด้วยความเร็วลมสูงสุดในระบบสุริยะถึง 2,100 กม./ชม. (เร็วกว่าความเร็วเสียงบนโลก!) และมีพายุจุดมืดใหญ่ (Great Dark Spot) ที่หมุนวนในชั้นบรรยากาศ',
+                atmosphere: [
+                    { name: 'ไฮโดรเจน (H₂)', percent: 80.0, color: '#3b82f6' },
+                    { name: 'ฮีเลียม (He)', percent: 19.0, color: '#60a5fa' },
+                    { name: 'มีเทน (CH₄)', percent: 1.5, color: '#1d4ed8' }
+                ],
+                layers: [
+                    { name: 'แกนหินและเหล็กขนาดเท่าโลก', desc: 'ปลดปล่อยความร้อนภายในออกมามากกว่าพลังงานที่ได้รับจากดวงอาทิตย์ถึง 2.6 เท่า!', color: '#f59e0b' },
+                    { name: 'มหาสมุทรน้ำ-แอมโมเนีย-มีเทนยิ่งยวด', desc: 'ความดันสูงถึงแสนบาร์ มีเพชรเหลวและฝนเพชรตกอยู่ภายใน', color: '#1e40af' },
+                    { name: 'ชั้นบรรยากาศพายุความเร็วเหนือเสียง', desc: 'กระแสลมกรดความเร็ว 2,100 กม./ชม.', color: '#3b82f6' }
+                ],
+                mechanics: 'ดาวเนปจูนเป็นดาวเคราะห์ดวงแรกที่นักดาราศาสตร์ (Urbain Le Verrier) ค้นพบด้วย "ปลายปากกาและสมการคณิตศาสตร์" ในปี 1846 จากการสังเกตว่าวงโคจรของดาวยูเรนัสเบี้ยวไป จึงคำนวณหาตำแหน่งของดาวลึกลับที่ดึงดูดดาวยูเรนัสอยู่ แล้วส่องกล้องโทรทรรศน์ไปเจอดาวเนปจูนตรงจุดนั้นพอดี!',
+                facts: [
+                    'ตั้งแต่ถูกค้นพบในปี 1846 ดาวเนปจูนเพิ่งโคจรรอบดวงอาทิตย์ครบ 1 รอบแรกเมื่อปี 2011 นี่เอง! (1 ปีเนปจูน = 165 ปีโลก)',
+                    'แสงอาทิตย์ที่ส่องไปถึงดาวเนปจูนมีความเข้มเพียง 1/900 ของแสงอาทิตย์บนโลก (สลัวเหมือนช่วงพลบค่ำ)',
+                    'ดวงจันทร์ "ไทรทัน (Triton)" โคจรสวนทางกับการหมุนของดาวเนปจูน และพ่นไนโตรเจนเหลวพุ่งขึ้นสู่อวกาศ!'
+                ],
+                labData: {
+                    nakedStatus: 'ถูกพายุความเร็วเหนือเสียงฉีกร่างและแช่แข็งทันที',
+                    nakedTime: 'น้อยกว่า 1 วินาที',
+                    nakedDesc: 'นอกจากความหนาว -214 °C และการไร้พื้นดินแล้ว พายุความเร็ว 2,100 กม./ชม. บนดาวเนปจูนจะพัดร่างของคุณปลิวด้วยความเร็วเหนือเสียง (Supersonic) สร้างคลื่นกระแทกฉีกเนื้อเยื่อและแช่แข็งคุณในพริบตา',
+                    suitDesc: 'แม้ใส่ชุดอวกาศและลอยด้วยร่มชูชีพ พายุความเร็ว 2,100 กม./ชม. จะฉีกร่มชูชีพขาดวิ่น และเหวี่ยงคุณจมลงสู่ชั้นมหาสมุทรความดันสูง',
+                    waterDesc: 'ถูกพายุความเร็วเหนือเสียงพัดแตกกระจายเป็นละอองน้ำแข็งความเร็วสูงเหมือนกระสุนปืนกลน้ำแข็ง!',
+                    plantDesc: 'ถูกฉีกเป็นผุยผงน้ำแข็งและพัดปลิวไปรอบดาวด้วยความเร็วเหนือเสียง',
+                    roverDesc: 'ไม่สามารถต้านทานแรงลม 2,100 กม./ชม. และจมลงสู่ชั้นเนื้อดาวน้ำแข็งความดันสูง',
+                    soundDesc: 'เสียงพายุคำรามดังสนั่นหวั่นไหวจากกระแสลมเหนือเสียง แรงโน้มถ่วง 1.14G ทำให้ตัวคุณหนักขึ้น 14% (คน 60 กก. จะหนัก 68.4 กก.)',
+                    whatIfAir: 'หากปรับให้มีออกซิเจนและอุณหภูมิ 25 °C บนสถานีลอยฟ้า แรงโน้มถ่วง 1.14G ยังพอให้มนุษย์เดินได้ (แค่รู้สึกเหมือนแบกเป้หนัก 8 กก. ตลอดเวลา) แต่ต้องสร้างเกราะบังลมความเร็วเหนือเสียง และใช้ไฟส่องสว่างช่วยเพราะดวงอาทิตย์อยู่ไกลมาก!'
+                }
+            },
+            pluto: {
+                id: 'pluto',
+                name: 'ดาวพลูโต',
+                nameEn: 'Pluto (Dwarf Planet)',
+                emoji: '❄️',
+                type: 'ดาวเคราะห์แคระแถบไคเปอร์ (Kuiper Belt Dwarf Planet)',
+                badgeColor: 'radial-gradient(circle at 30% 30%, #f1f5f9, #94a3b8, #475569)',
+                heroGradient: 'linear-gradient(135deg, rgba(148, 163, 184, 0.32), rgba(15, 23, 42, 0.92))',
+                radius3D: 1.2,
+                distance3D: 124,
+                orbitSpeed: 0.0015,
+                rotationSpeed: -0.004,
+                tilt: 2.09,
+                tempC: -229,
+                tempDisplay: '-229 °C (เยือกแข็งสุดขอบระบบสุริยะ)',
+                gravityG: 0.06,
+                gravityDisplay: '0.06 G (0.62 m/s² เบามาก!)',
+                diameterDisplay: '2,376 กม. (เล็กกว่าดวงจันทร์ของโลก)',
+                moonsDisplay: '5 ดวง (แครอน ใหญ่เกือบครึ่งหนึ่งของพลูโต)',
+                dayDisplay: '6 วัน 9 ชั่วโมงของโลก',
+                yearDisplay: '248 ปีของโลก',
+                uniqueFeature: 'ที่ราบน้ำแข็งไนโตรเจนรูปหัวใจ (Tombaugh Regio) และโคจรคู่กับดวงจันทร์แครอนเหมือนดาวเคราะห์คู่!',
+                description: 'ดาวพลูโตถูกลดสถานะเป็น "ดาวเคราะห์แคระ" ในปี 2006 แต่เมื่อยาน New Horizons บินผ่านในปี 2015 เราได้พบโลกน้ำแข็งที่น่าทึ่ง มีภูเขาน้ำแข็งสูงเท่าเทือกเขาร็อกกี และธารน้ำแข็งไนโตรเจนรูปหัวใจขนาดยักษ์ที่เรียกว่า Tombaugh Regio',
+                atmosphere: [
+                    { name: 'ไนโตรเจนเจือจาง (N₂)', percent: 99.0, color: '#94a3b8' },
+                    { name: 'มีเทน (CH₄)', percent: 0.5, color: '#38bdf8' },
+                    { name: 'คาร์บอนมอนอกไซด์ (CO)', percent: 0.5, color: '#cbd5e1' }
+                ],
+                layers: [
+                    { name: 'แกนหินซิลิเกตขนาดใหญ่', desc: 'คิดเป็น 70% ของเส้นผ่านศูนย์กลางดาว', color: '#64748b' },
+                    { name: 'ชั้นแมนเทิลน้ำแข็งและมหาสมุทรใต้พิภพ', desc: 'คาดว่าอาจมีมหาสมุทรน้ำผสมแอมโมเนียซ่อนอยู่ใต้ชั้นน้ำแข็ง', color: '#38bdf8' },
+                    { name: 'เปลือกน้ำแข็งไนโตรเจนและมีเทน', desc: 'เย็นจัดถึง -229 °C จนก๊าซไนโตรเจนแข็งตัวกลายเป็นธารน้ำแข็ง', color: '#f1f5f9' }
+                ],
+                mechanics: 'ดาวพลูโตและดวงจันทร์แครอน (Charon) มีมวลใกล้เคียงกันมากจนจุดศูนย์กลางมวลร่วม (Barycenter) อยู่นอกตัวดาวพลูโต ทำให้ทั้งสองโคจรรอบกันและกันและหันด้านเดียวเข้าหากันตลอดกาล!',
+                facts: [
+                    'แรงโน้มถ่วงบนดาวพลูโตมีเพียง 6% ของโลก หากคุณหนัก 60 กก. บนโลก คุณจะหนักแค่ 3.6 กก. บนดาวพลูโต!',
+                    'เมื่อดาวพลูโตโคจรเข้าใกล้ดวงอาทิตย์ น้ำแข็งไนโตรเจนจะระเหิดเป็นบรรยากาศบางๆ และเมื่อถอยห่างออกไป บรรยากาศจะแข็งตัวตกลงมาเป็นหิมะ!',
+                    'แสงอาทิตย์บนดาวพลูโตใช้เวลาเดินทางนานถึง 5 ชั่วโมงครึ่ง แต่ยังสว่างกว่าคืนพระจันทร์เต็มดวงบนโลกถึง 300 เท่า'
+                ],
+                labData: {
+                    nakedStatus: 'แข็งตัวเป็นน้ำแข็งไนโตรเจนในสุญญากาศทันที',
+                    nakedTime: 'น้อยกว่า 2 วินาที',
+                    nakedDesc: 'ที่อุณหภูมิ -229 °C เย็นจนแม้แต่อากาศที่เราหายใจก็กลายเป็นน้ำแข็ง! ทันทีที่ถอดชุดอวกาศ ร่างกายจะสูญเสียความร้อนและแข็งตัวเกือบถึงจุดศูนย์สัมบูรณ์',
+                    suitDesc: 'เดินสำรวจได้สนุกมาก! ด้วยแรงโน้มถ่วงเพียง 0.06G คุณสามารถกระโดดครั้งเดียวลอยสูงถึง 8.3 เมตร (สูงเท่าตึก 3 ชั้น!) และค่อยๆ ลอยตกลงมาอย่างนุ่มนวล',
+                    waterDesc: 'น้ำ 1 ตันจะกลายเป็นหินน้ำแข็งที่แข็งแกร่งพอๆ กับหินแกรนิต เพราะที่ -229 °C น้ำแข็งทำหน้าที่เป็นหินโครงสร้างภูเขาของดาวพลูโต',
+                    plantDesc: 'แข็งตัวและแตกสลายทันที และแสงอาทิตย์ที่ไกลถึง 5.9 พันล้านกิโลเมตรอ่อนเกินกว่าที่พืชทั่วไปจะสังเคราะห์แสงได้เต็มที่',
+                    roverDesc: 'ต้องใช้แบตเตอรี่นิวเคลียร์ RTG เท่านั้นเพราะแผงโซลาร์เซลล์แทบผลิตไฟไม่ได้เลยในระยะห่างระดับนี้',
+                    soundDesc: 'ไร้เสียงเพราะบรรยากาศบางเบามาก ส่วนการโยนลูกบอลจะลอยไกลเป็นกิโลเมตรเหมือนตีลูกกอล์ฟข้ามภูเขา!',
+                    whatIfAir: 'หากอุ่นดาวพลูโตให้เป็น 25 °C และเติมอากาศ ดาวพลูโตทั้งดวงจะกลายเป็น "ดาวมหาสมุทรน้ำลึก" เพราะเปลือกดาวที่เป็นน้ำแข็งจะละลายกลายเป็นน้ำทั้งหมด! และเพราะแรงโน้มถ่วงเพียง 0.06G อากาศจะหลุดลอยสู่อวกาศเร็วมากหากไม่มีโดมกักเก็บ'
+                }
+            }
+        };
+
+        const PLANET_ORDER = ['sun', 'mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
+
+        /* ============================================================================
+         * 2. APPLICATION STATE & GLOBALS
+         * ============================================================================ */
+        let currentMode = 'explore'; // 'explore' | 'deepdive' | 'humanlab' | 'collision'
+        let currentTargetId = 'sun';
+        let currentInspectorTab = 'overview';
+        let currentLabSubject = 'human_naked';
+        let isCrossSectionActive = false;
+        let showOrbits = true;
+        let showLabels = true;
+        let isTimePaused = false;
+        let timeMultiplier = 1.0;
+        let isRightPanelCollapsed = false;
+        let soundEnabled = false;
+        let audioCtx = null;
+
+        // Three.js Globals
+        let scene, camera, renderer;
+        let solarSystemGroup, collisionArenaGroup;
+        let planetMeshes = {}; // id -> { group, mesh, clouds, rings, coreGroup, orbitLine, angle, data }
+        let sunGlowSprite;
+        let starField;
+
+        // Camera Orbit Control State
+        let camTargetPos = new THREE.Vector3(0, 0, 0);
+        let camCurrentLookAt = new THREE.Vector3(0, 0, 0);
+        let spherical = { radius: 95, phi: Math.PI / 3, theta: Math.PI / 4 };
+        let targetSpherical = { radius: 95, phi: Math.PI / 3, theta: Math.PI / 4 };
+        let isDragging = false;
+        let prevMouse = { x: 0, y: 0 };
+        let raycaster = new THREE.Raycaster();
+        let mouseVec = new THREE.Vector2();
+
+        // Collision Simulation 3D State
+        let collisionState = {
+            active: false,
+            phase: 'idle', // 'idle' | 'approaching' | 'impact' | 'aftermath'
+            bodyA: null,
+            bodyB: null,
+            shockwaveMesh: null,
+            debrisParticles: null,
+            debrisVelocities: [],
+            velocity: 30,
+            angleDeg: 15,
+            impactTimer: 0,
+            slowMoFactor: 1.0,
+            cameraShakeIntensity: 0
+        };
+
+        // Gravity Jump Mini-Simulator State
+        let jumpAnimState = {
+            active: false,
+            startTime: 0
+        };
+
+        /* ============================================================================
+         * 3. PROCEDURAL HIGH-RES PLANET TEXTURE GENERATOR (NO EXTERNAL URLS NEEDED)
+         * ============================================================================ */
+        function createPlanetTexture(id) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            if (id === 'sun') {
+                // Fiery plasma gradient + solar granules & sunspots
+                const grad = ctx.createLinearGradient(0, 0, 0, h);
+                grad.addColorStop(0, '#dc2626');
+                grad.addColorStop(0.25, '#f97316');
+                grad.addColorStop(0.5, '#facc15');
+                grad.addColorStop(0.75, '#f97316');
+                grad.addColorStop(1, '#dc2626');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+
+                for (let i = 0; i < 1800; i++) {
+                    const x = Math.random() * w;
+                    const y = Math.random() * h;
+                    const r = Math.random() * 14 + 2;
+                    ctx.fillStyle = Math.random() > 0.35 ? 'rgba(254, 240, 138, 0.25)' : 'rgba(185, 28, 28, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(x, y, r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                // Sunspots
+                for (let i = 0; i < 18; i++) {
+                    const x = Math.random() * w;
+                    const y = h * 0.25 + Math.random() * (h * 0.5);
+                    const r = Math.random() * 10 + 4;
+                    ctx.fillStyle = 'rgba(69, 10, 10, 0.75)';
+                    ctx.beginPath();
+                    ctx.arc(x, y, r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else if (id === 'mercury') {
+                ctx.fillStyle = '#64748b';
+                ctx.fillRect(0, 0, w, h);
+                for (let i = 0; i < 900; i++) {
+                    const x = Math.random() * w;
+                    const y = Math.random() * h;
+                    const r = Math.random() * 18 + 2;
+                    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(148, 163, 184, 0.35)' : 'rgba(51, 65, 85, 0.45)';
+                    ctx.beginPath();
+                    ctx.arc(x, y, r, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(203, 213, 225, 0.2)';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                }
+            } else if (id === 'venus') {
+                const grad = ctx.createLinearGradient(0, 0, 0, h);
+                grad.addColorStop(0, '#a16207');
+                grad.addColorStop(0.5, '#eab308');
+                grad.addColorStop(1, '#a16207');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+                // Swirling sulfuric clouds
+                for (let y = 0; y < h; y += 6) {
+                    ctx.fillStyle = y % 12 === 0 ? 'rgba(254, 240, 138, 0.22)' : 'rgba(161, 98, 7, 0.25)';
+                    ctx.beginPath();
+                    for (let x = 0; x <= w; x += 20) {
+                        const offset = Math.sin((x / w) * Math.PI * 4 + y * 0.05) * 14;
+                        if (x === 0) ctx.moveTo(x, y + offset);
+                        else ctx.lineTo(x, y + offset);
+                    }
+                    ctx.lineTo(w, y + 20);
+                    ctx.lineTo(0, y + 20);
+                    ctx.fill();
+                }
+            } else if (id === 'earth') {
+                // Deep ocean base
+                const oceanGrad = ctx.createLinearGradient(0, 0, 0, h);
+                oceanGrad.addColorStop(0, '#0c4a6e');
+                oceanGrad.addColorStop(0.5, '#0284c7');
+                oceanGrad.addColorStop(1, '#0c4a6e');
+                ctx.fillStyle = oceanGrad;
+                ctx.fillRect(0, 0, w, h);
+
+                // Stylized Continents
+                ctx.fillStyle = '#15803d';
+                const continents = [
+                    { x: 180, y: 150, rx: 90, ry: 75 },
+                    { x: 260, y: 320, rx: 55, ry: 95 },
+                    { x: 520, y: 160, rx: 75, ry: 65 },
+                    { x: 550, y: 290, rx: 65, ry: 85 },
+                    { x: 740, y: 170, rx: 130, ry: 85 },
+                    { x: 840, y: 360, rx: 55, ry: 40 }
+                ];
+                continents.forEach(c => {
+                    for (let j = 0; j < 28; j++) {
+                        const angle = (j / 28) * Math.PI * 2;
+                        const px = c.x + Math.cos(angle) * c.rx * (0.5 + Math.random() * 0.5);
+                        const py = c.y + Math.sin(angle) * c.ry * (0.5 + Math.random() * 0.5);
+                        ctx.fillStyle = Math.random() > 0.3 ? '#16a34a' : '#ca8a04';
+                        ctx.beginPath();
+                        ctx.arc(px, py, 28 + Math.random() * 25, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+
+                // Polar Ice Caps
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(0, 0, w, 32);
+                ctx.fillRect(0, h - 32, w, 32);
+
+                // Wispy White Clouds
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                for (let i = 0; i < 160; i++) {
+                    ctx.beginPath();
+                    ctx.ellipse(Math.random() * w, Math.random() * h, Math.random() * 55 + 15, Math.random() * 10 + 3, 0.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else if (id === 'mars') {
+                const grad = ctx.createLinearGradient(0, 0, 0, h);
+                grad.addColorStop(0, '#991b1b');
+                grad.addColorStop(0.5, '#ea580c');
+                grad.addColorStop(1, '#991b1b');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+
+                for (let i = 0; i < 500; i++) {
+                    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(127, 29, 29, 0.35)' : 'rgba(251, 146, 60, 0.28)';
+                    ctx.beginPath();
+                    ctx.arc(Math.random() * w, Math.random() * h, Math.random() * 26 + 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                // Valles Marineris canyon scar
+                ctx.strokeStyle = 'rgba(69, 10, 10, 0.75)';
+                ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.moveTo(w * 0.35, h * 0.52);
+                ctx.quadraticCurveTo(w * 0.5, h * 0.48, w * 0.65, h * 0.54);
+                ctx.stroke();
+
+                // Polar ice caps
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                ctx.fillRect(0, 0, w, 20);
+                ctx.fillRect(0, h - 20, w, 20);
+            } else if (id === 'jupiter') {
+                const bandColors = ['#7c2d12', '#d97706', '#fef3c7', '#c2410c', '#fde68a', '#9a3412', '#f59e0b', '#fed7aa', '#7c2d12'];
+                const bandH = h / bandColors.length;
+                bandColors.forEach((col, idx) => {
+                    ctx.fillStyle = col;
+                    ctx.fillRect(0, idx * bandH, w, bandH + 4);
+                });
+                // Turbulence waves
+                for (let i = 0; i < 300; i++) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+                    ctx.beginPath();
+                    ctx.ellipse(Math.random() * w, Math.random() * h, Math.random() * 60 + 20, Math.random() * 6 + 2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                // Great Red Spot
+                ctx.fillStyle = '#dc2626';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.62, h * 0.68, 52, 30, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#fca5a5';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            } else if (id === 'saturn') {
+                const bands = ['#a16207', '#eab308', '#fef08a', '#ca8a04', '#fde047', '#ca8a04', '#a16207'];
+                const bh = h / bands.length;
+                bands.forEach((c, i) => {
+                    ctx.fillStyle = c;
+                    ctx.fillRect(0, i * bh, w, bh + 2);
+                });
+                for (let i = 0; i < 200; i++) {
+                    ctx.fillStyle = 'rgba(254, 249, 195, 0.15)';
+                    ctx.fillRect(0, Math.random() * h, w, 3);
+                }
+            } else if (id === 'uranus') {
+                const grad = ctx.createLinearGradient(0, 0, 0, h);
+                grad.addColorStop(0, '#0891b2');
+                grad.addColorStop(0.5, '#67e8f9');
+                grad.addColorStop(1, '#0e7490');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+            } else if (id === 'neptune') {
+                const grad = ctx.createLinearGradient(0, 0, 0, h);
+                grad.addColorStop(0, '#1e3a8a');
+                grad.addColorStop(0.5, '#2563eb');
+                grad.addColorStop(1, '#172554');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+                // High speed methane wind streaks & Great Dark Spot
+                ctx.fillStyle = 'rgba(191, 219, 254, 0.35)';
+                for (let i = 0; i < 80; i++) {
+                    ctx.fillRect(Math.random() * w, Math.random() * h, Math.random() * 90 + 20, 3);
+                }
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.65)';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.45, h * 0.58, 42, 24, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (id === 'pluto') {
+                const grad = ctx.createLinearGradient(0, 0, 0, h);
+                grad.addColorStop(0, '#475569');
+                grad.addColorStop(0.5, '#cbd5e1');
+                grad.addColorStop(1, '#334155');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+                // Tombaugh Regio (Heart-shaped nitrogen ice plain)
+                ctx.fillStyle = 'rgba(248, 250, 252, 0.88)';
+                ctx.beginPath();
+                ctx.arc(w * 0.48, h * 0.48, 55, 0, Math.PI * 2);
+                ctx.arc(w * 0.56, h * 0.48, 55, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function createSunGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(128, 128, 10, 128, 128, 128);
+            grad.addColorStop(0, 'rgba(255, 251, 235, 1)');
+            grad.addColorStop(0.25, 'rgba(251, 191, 36, 0.85)');
+            grad.addColorStop(0.55, 'rgba(234, 88, 12, 0.35)');
+            grad.addColorStop(1, 'rgba(234, 88, 12, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 256, 256);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        /* ============================================================================
+         * 4. THREE.JS 3D SOLAR SYSTEM & COLLISION ARENA INITIALIZATION
+         * ============================================================================ */
+        function initThreeScene() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x030611, 0.0012);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x334155, 0.85);
+            scene.add(ambientLight);
+
+            const sunPointLight = new THREE.PointLight(0xfffbeb, 2.2, 600);
+            sunPointLight.position.set(0, 0, 0);
+            scene.add(sunPointLight);
+
+            // Create Rich 3D Starfield Background
+            createStarField();
+
+            // Main Solar System Group
+            solarSystemGroup = new THREE.Group();
+            scene.add(solarSystemGroup);
+
+            // Collision Arena Group (Hidden until collision mode)
+            collisionArenaGroup = new THREE.Group();
+            collisionArenaGroup.visible = false;
+            scene.add(collisionArenaGroup);
+
+            // Build Sun & All Planets
+            buildSolarSystemObjects();
+
+            // Setup Mouse & Touch Camera Controls
+            setupCameraInteraction(renderer.domElement);
+
+            // Window Resize Listener
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createStarField() {
+            const starGeo = new THREE.BufferGeometry();
+            const starCount = 4500;
+            const positions = new Float32Array(starCount * 3);
+            const colors = new Float32Array(starCount * 3);
+
+            for (let i = 0; i < starCount; i++) {
+                const r = 300 + Math.random() * 600;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+                positions[i * 3 + 2] = r * Math.cos(phi);
+
+                const tint = Math.random();
+                if (tint > 0.8) {
+                    colors[i * 3] = 0.7; colors[i * 3 + 1] = 0.85; colors[i * 3 + 2] = 1.0;
+                } else if (tint > 0.6) {
+                    colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.9; colors[i * 3 + 2] = 0.7;
+                } else {
+                    colors[i * 3] = 1.0; colors[i * 3 + 1] = 1.0; colors[i * 3 + 2] = 1.0;
+                }
+            }
+
+            starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            starGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const starMat = new THREE.PointsMaterial({ size: 1.35, vertexColors: true, transparent: true, opacity: 0.85 });
+            starField = new THREE.Points(starGeo, starMat);
+            scene.add(starField);
+        }
+
+        function buildSolarSystemObjects() {
+            const labelsContainer = document.getElementById('labels-container');
+            labelsContainer.innerHTML = '';
+
+            PLANET_ORDER.forEach((id, index) => {
+                const data = CELESTIAL_DATA[id];
+                const planetGroup = new THREE.Group();
+                const tex = createPlanetTexture(id);
+
+                // Main Sphere Material
+                let mat;
+                if (id === 'sun') {
+                    mat = new THREE.MeshBasicMaterial({ map: tex });
+                } else {
+                    mat = new THREE.MeshStandardMaterial({
+                        map: tex,
+                        roughness: 0.75,
+                        metalness: 0.08
+                    });
+                }
+
+                const geo = new THREE.SphereGeometry(data.radius3D, 48, 48);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.rotation.z = data.tilt;
+                mesh.userData = { planetId: id };
+                planetGroup.add(mesh);
+
+                // Internal Core Cross-Section Group (Shown when user toggles "ผ่าดูแกนดาว")
+                const coreGroup = createInternalCoreMesh(data);
+                coreGroup.visible = false;
+                planetGroup.add(coreGroup);
+
+                // 3D Terraforming Breathable Atmosphere Halo (Toggled in Human Lab)
+                const tfAtmoGeo = new THREE.SphereGeometry(data.radius3D * 1.09, 32, 32);
+                const tfAtmoMat = new THREE.MeshBasicMaterial({
+                    color: 0x38bdf8,
+                    transparent: true,
+                    opacity: 0.28,
+                    side: THREE.BackSide,
+                    blending: THREE.AdditiveBlending
+                });
+                const tfAtmoMesh = new THREE.Mesh(tfAtmoGeo, tfAtmoMat);
+                tfAtmoMesh.visible = false;
+                planetGroup.add(tfAtmoMesh);
+
+                // 3D Artificial Magnetic Shield Rings (Toggled in Human Lab)
+                const tfMagGroup = new THREE.Group();
+                for (let m = 0; m < 3; m++) {
+                    const torusGeo = new THREE.TorusGeometry(data.radius3D * 1.55, 0.04, 16, 64);
+                    const torusMat = new THREE.MeshBasicMaterial({
+                        color: 0xa855f7,
+                        transparent: true,
+                        opacity: 0.55,
+                        blending: THREE.AdditiveBlending
+                    });
+                    const torus = new THREE.Mesh(torusGeo, torusMat);
+                    torus.rotation.y = (m * Math.PI) / 3;
+                    tfMagGroup.add(torus);
+                }
+                tfMagGroup.visible = false;
+                planetGroup.add(tfMagGroup);
+
+                // Special Features: Sun Corona Glow
+                if (id === 'sun') {
+                    const spriteMat = new THREE.SpriteMaterial({
+                        map: createSunGlowTexture(),
+                        color: 0xf59e0b,
+                        transparent: true,
+                        blending: THREE.AdditiveBlending
+                    });
+                    sunGlowSprite = new THREE.Sprite(spriteMat);
+                    sunGlowSprite.scale.set(data.radius3D * 4.2, data.radius3D * 4.2, 1);
+                    planetGroup.add(sunGlowSprite);
+                }
+
+                // Special Features: Saturn & Uranus Rings
+                if (id === 'saturn') {
+                    const ringGeo = new THREE.RingGeometry(data.radius3D * 1.35, data.radius3D * 2.35, 64);
+                    const ringMat = new THREE.MeshStandardMaterial({
+                        color: 0xfde68a,
+                        side: THREE.DoubleSide,
+                        transparent: true,
+                        opacity: 0.78,
+                        roughness: 0.5
+                    });
+                    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+                    ringMesh.rotation.x = Math.PI / 2 - 0.35;
+                    planetGroup.add(ringMesh);
+                } else if (id === 'uranus') {
+                    const ringGeo = new THREE.RingGeometry(data.radius3D * 1.4, data.radius3D * 1.65, 64);
+                    const ringMat = new THREE.MeshBasicMaterial({
+                        color: 0x67e8f9,
+                        side: THREE.DoubleSide,
+                        transparent: true,
+                        opacity: 0.32
+                    });
+                    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+                    ringMesh.rotation.y = Math.PI / 2;
+                    planetGroup.add(ringMesh);
+                }
+
+                // Special Features: Earth Moon & Atmosphere Halo
+                let moonPivot = null;
+                if (id === 'earth') {
+                    const haloGeo = new THREE.SphereGeometry(data.radius3D * 1.06, 32, 32);
+                    const haloMat = new THREE.MeshBasicMaterial({
+                        color: 0x38bdf8,
+                        transparent: true,
+                        opacity: 0.16,
+                        side: THREE.BackSide
+                    });
+                    planetGroup.add(new THREE.Mesh(haloGeo, haloMat));
+
+                    // Earth's Moon
+                    moonPivot = new THREE.Group();
+                    const moonGeo = new THREE.SphereGeometry(0.55, 24, 24);
+                    const moonMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.9 });
+                    const moonMesh = new THREE.Mesh(moonGeo, moonMat);
+                    moonMesh.position.set(4.5, 0.4, 0);
+                    moonPivot.add(moonMesh);
+                    planetGroup.add(moonPivot);
+                }
+
+                // Orbit Ring Path
+                let orbitLine = null;
+                if (data.distance3D > 0) {
+                    const orbitPoints = [];
+                    const segments = 128;
+                    for (let i = 0; i <= segments; i++) {
+                        const theta = (i / segments) * Math.PI * 2;
+                        orbitPoints.push(new THREE.Vector3(Math.cos(theta) * data.distance3D, 0, Math.sin(theta) * data.distance3D));
+                    }
+                    const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+                    const orbitMat = new THREE.LineBasicMaterial({
+                        color: id === 'earth' ? 0x38bdf8 : 0x334155,
+                        transparent: true,
+                        opacity: id === 'earth' ? 0.55 : 0.35
+                    });
+                    orbitLine = new THREE.Line(orbitGeo, orbitMat);
+                    solarSystemGroup.add(orbitLine);
+                }
+
+                // Initial Orbital Position
+                const startAngle = index * 1.1;
+                planetGroup.position.set(
+                    Math.cos(startAngle) * data.distance3D,
+                    0,
+                    Math.sin(startAngle) * data.distance3D
+                );
+
+                solarSystemGroup.add(planetGroup);
+
+                // Create Floating 3D HTML Label
+                const labelEl = document.createElement('div');
+                labelEl.className = 'planet-label-3d px-2.5 py-1 rounded-full bg-slate-950/85 border border-slate-700/80 text-[11px] text-slate-200 flex items-center gap-1.5 shadow-lg hover:border-sky-400';
+                labelEl.innerHTML = `<span>${data.emoji}</span><span class="font-medium">${data.name}</span>`;
+                labelEl.onclick = () => selectPlanet(id, true);
+                labelsContainer.appendChild(labelEl);
+
+                planetMeshes[id] = {
+                    group: planetGroup,
+                    mesh: mesh,
+                    coreGroup: coreGroup,
+                    tfAtmoMesh: tfAtmoMesh,
+                    tfMagGroup: tfMagGroup,
+                    moonPivot: moonPivot,
+                    orbitLine: orbitLine,
+                    labelEl: labelEl,
+                    angle: startAngle,
+                    data: data
+                };
+            });
+
+            // Also build Asteroid Belt between Mars (43) and Jupiter (58)
+            buildAsteroidBelt(49.5, 3.2, 450);
+        }
+
+        function createInternalCoreMesh(data) {
+            const cg = new THREE.Group();
+            const r = data.radius3D;
+
+            // Inner glowing core
+            const innerGeo = new THREE.SphereGeometry(r * 0.42, 32, 32);
+            const innerMat = new THREE.MeshBasicMaterial({ color: data.layers[0].color });
+            cg.add(new THREE.Mesh(innerGeo, innerMat));
+
+            // Middle mantle shell (hemisphere cut)
+            const mantleGeo = new THREE.SphereGeometry(r * 0.75, 32, 32, 0, Math.PI * 1.5);
+            const mantleMat = new THREE.MeshStandardMaterial({
+                color: data.layers[1].color,
+                side: THREE.DoubleSide,
+                roughness: 0.4
+            });
+            cg.add(new THREE.Mesh(mantleGeo, mantleMat));
+
+            // Outer crust shell (hemisphere cut)
+            const crustGeo = new THREE.SphereGeometry(r * 0.98, 32, 32, 0, Math.PI * 1.25);
+            const crustMat = new THREE.MeshStandardMaterial({
+                color: data.layers[2].color,
+                side: THREE.DoubleSide,
+                roughness: 0.6,
+                transparent: true,
+                opacity: 0.85
+            });
+            cg.add(new THREE.Mesh(crustGeo, crustMat));
+
+            return cg;
+        }
+
+        function buildAsteroidBelt(radiusCenter, spread, count) {
+            const geo = new THREE.BufferGeometry();
+            const positions = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const r = radiusCenter + (Math.random() - 0.5) * spread * 2;
+                const y = (Math.random() - 0.5) * 1.8;
+                positions[i * 3] = Math.cos(angle) * r;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = Math.sin(angle) * r;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const mat = new THREE.PointsMaterial({ color: 0x94a3b8, size: 0.45, transparent: true, opacity: 0.6 });
+            const belt = new THREE.Points(geo, mat);
+            solarSystemGroup.add(belt);
+        }
+
+        /* ============================================================================
+         * 5. CAMERA ORBIT, ZOOM & CLICK RAYCASTING CONTROLS
+         * ============================================================================ */
+        function setupCameraInteraction(domElement) {
+            domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                prevMouse = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - prevMouse.x;
+                const dy = e.clientY - prevMouse.y;
+                prevMouse = { x: e.clientX, y: e.clientY };
+
+                targetSpherical.theta -= dx * 0.0065;
+                targetSpherical.phi = Math.max(0.15, Math.min(Math.PI - 0.15, targetSpherical.phi - dy * 0.0065));
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            // Wheel Zoom
+            domElement.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const minR = collisionState.active ? 8 : (CELESTIAL_DATA[currentTargetId].radius3D * 2.1);
+                targetSpherical.radius = Math.max(minR, Math.min(240, targetSpherical.radius + e.deltaY * 0.06));
+            }, { passive: false });
+
+            // Touch Support for Mobile/Tablet
+            let touchStartDist = 0;
+            domElement.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                } else if (e.touches.length === 2) {
+                    isDragging = false;
+                    touchStartDist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                }
+            }, { passive: true });
+
+            domElement.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 1 && isDragging) {
+                    const dx = e.touches[0].clientX - prevMouse.x;
+                    const dy = e.touches[0].clientY - prevMouse.y;
+                    prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                    targetSpherical.theta -= dx * 0.007;
+                    targetSpherical.phi = Math.max(0.15, Math.min(Math.PI - 0.15, targetSpherical.phi - dy * 0.007));
+                } else if (e.touches.length === 2) {
+                    const dist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    const delta = touchStartDist - dist;
+                    touchStartDist = dist;
+                    const minR = CELESTIAL_DATA[currentTargetId].radius3D * 2.1;
+                    targetSpherical.radius = Math.max(minR, Math.min(240, targetSpherical.radius + delta * 0.12));
+                }
+            }, { passive: true });
+
+            domElement.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+
+            // Click on 3D Planet Mesh to Select & Zoom
+            domElement.addEventListener('click', (e) => {
+                if (collisionState.active) return;
+                mouseVec.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouseVec.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                raycaster.setFromCamera(mouseVec, camera);
+
+                const clickableMeshes = Object.values(planetMeshes).map(p => p.mesh);
+                const intersects = raycaster.intersectObjects(clickableMeshes);
+                if (intersects.length > 0) {
+                    const hitId = intersects[0].object.userData.planetId;
+                    if (hitId) {
+                        selectPlanet(hitId, true);
+                    }
+                }
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /* ============================================================================
+         * 6. UI SYNCHRONIZATION, PLANET SELECTION & MODE SWITCHING
+         * ============================================================================ */
+        function buildBottomPlanetDock() {
+            const dock = document.getElementById('planet-dock-list');
+            dock.innerHTML = '';
+
+            PLANET_ORDER.forEach(id => {
+                const d = CELESTIAL_DATA[id];
+                const btn = document.createElement('button');
+                btn.id = `dock-btn-${id}`;
+                btn.onclick = () => selectPlanet(id, true);
+                btn.className = `px-3 py-1.5 rounded-xl border border-slate-700/70 bg-slate-900/75 hover:bg-slate-800 text-xs flex items-center gap-2 transition shrink-0 ${id === currentTargetId ? 'active-planet-pill' : ''}`;
+                btn.innerHTML = `
+                    <span class="text-base">${d.emoji}</span>
+                    <div class="text-left">
+                        <div class="font-semibold text-white leading-none">${d.name}</div>
+                        <div class="text-[9px] text-slate-400 font-mono mt-0.5">${d.gravityG}G</div>
+                    </div>
+                `;
+                dock.appendChild(btn);
+            });
+        }
+
+        function selectPlanet(id, zoomIn = true) {
+            if (!CELESTIAL_DATA[id]) return;
+            currentTargetId = id;
+            const d = CELESTIAL_DATA[id];
+            playUISound(520, 0.08);
+
+            // If we were in collision mode, exit collision arena back to solar system if user clicks a planet
+            if (currentMode === 'collision') {
+                switchMode('explore');
+            }
+
+            // Update Dock Active State
+            PLANET_ORDER.forEach(pid => {
+                const el = document.getElementById(`dock-btn-${pid}`);
+                if (el) {
+                    if (pid === id) el.classList.add('active-planet-pill');
+                    else el.classList.remove('active-planet-pill');
+                }
+            });
+
+            // Update Left Target HUD
+            document.getElementById('hud-target-type').textContent = d.type;
+            document.getElementById('hud-target-badge').textContent = d.emoji;
+            document.getElementById('hud-target-badge').style.background = d.badgeColor;
+            document.getElementById('hud-target-name').textContent = `${d.name} (${d.nameEn.split(' ')[0]})`;
+            document.getElementById('hud-target-en').textContent = d.nameEn;
+
+            // Update Right Inspector Panel
+            document.getElementById('inspector-hero-banner').style.background = d.heroGradient;
+            document.getElementById('insp-badge').textContent = d.type;
+            document.getElementById('insp-title').textContent = `${d.name} (${d.nameEn})`;
+            document.getElementById('insp-subtitle').textContent = `แรงโน้มถ่วง ${d.gravityDisplay} • อุณหภูมิ ${d.tempDisplay}`;
+            document.getElementById('insp-unique-feature').textContent = `เอกลักษณ์เด่น: ${d.uniqueFeature}`;
+
+            document.getElementById('stat-temp').textContent = d.tempDisplay;
+            document.getElementById('stat-gravity').textContent = d.gravityDisplay;
+            document.getElementById('stat-diameter').textContent = d.diameterDisplay;
+            document.getElementById('stat-moons').textContent = d.moonsDisplay;
+            document.getElementById('stat-day').textContent = d.dayDisplay;
+            document.getElementById('stat-year').textContent = d.yearDisplay;
+            document.getElementById('insp-description').textContent = d.description;
+
+            // Atmosphere Bars
+            const atmoContainer = document.getElementById('insp-atmosphere-list');
+            atmoContainer.innerHTML = d.atmosphere.map(a => `
+                <div>
+                    <div class="flex justify-between text-[11px] mb-0.5">
+                        <span class="text-slate-200">${a.name}</span>
+                        <span class="font-mono text-sky-300">${a.percent}%</span>
+                    </div>
+                    <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full" style="width: ${Math.max(4, a.percent)}%; background-color: ${a.color};"></div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Internal Structure Layers
+            const layersContainer = document.getElementById('insp-layers-container');
+            layersContainer.innerHTML = d.layers.map((layer, idx) => `
+                <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-start gap-3">
+                    <div class="w-6 h-6 rounded-lg flex items-center justify-center font-mono text-xs font-bold text-slate-950 shrink-0 mt-0.5" style="background-color: ${layer.color};">
+                        ${idx + 1}
+                    </div>
+                    <div>
+                        <h5 class="text-xs font-bold text-white">${layer.name}</h5>
+                        <p class="text-[11px] text-slate-300 mt-0.5">${layer.desc}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            // Mechanics & Facts
+            document.getElementById('insp-mechanics-text').textContent = d.mechanics;
+            document.getElementById('insp-facts-list').innerHTML = d.facts.map(f => `<li>${f}</li>`).join('');
+
+            // Apply Cross Section visibility to the selected planet
+            applyCrossSectionState();
+
+            // Update Human Survival & What-If Lab for this planet
+            updateHumanLabSimulation();
+
+            // Smooth Camera Zoom to Selected Planet
+            if (zoomIn) {
+                targetSpherical.radius = d.radius3D * 3.4;
+                targetSpherical.phi = Math.PI / 2.3;
+            }
+        }
+
+        function zoomCloseToCurrentTarget() {
+            const d = CELESTIAL_DATA[currentTargetId];
+            targetSpherical.radius = d.radius3D * 2.25;
+            targetSpherical.phi = Math.PI / 2.1;
+            playUISound(660, 0.1);
+        }
+
+        function resetCameraOverview() {
+            if (currentMode === 'collision') {
+                switchMode('explore');
+            }
+            currentTargetId = 'sun';
+            targetSpherical.radius = 115;
+            targetSpherical.phi = Math.PI / 3.1;
+            playUISound(420, 0.1);
+        }
+
+        function toggleCrossSection() {
+            isCrossSectionActive = !isCrossSectionActive;
+            applyCrossSectionState();
+            playUISound(isCrossSectionActive ? 740 : 480, 0.1);
+        }
+
+        function applyCrossSectionState() {
+            PLANET_ORDER.forEach(pid => {
+                const p = planetMeshes[pid];
+                if (!p) return;
+                if (pid === currentTargetId && isCrossSectionActive) {
+                    p.mesh.material.transparent = true;
+                    p.mesh.material.opacity = 0.22;
+                    p.coreGroup.visible = true;
+                } else {
+                    p.mesh.material.transparent = false;
+                    p.mesh.material.opacity = 1.0;
+                    p.coreGroup.visible = false;
+                }
+            });
+
+            const btn1 = document.getElementById('btn-cross-section');
+            const btn2 = document.getElementById('btn-cross-section-2');
+            if (isCrossSectionActive) {
+                btn1.classList.add('bg-amber-500', 'text-slate-950');
+                if (btn2) btn2.textContent = 'ปิดโหมดผ่าโครงสร้าง';
+            } else {
+                btn1.classList.remove('bg-amber-500', 'text-slate-950');
+                if (btn2) btn2.textContent = 'ผ่าโครงสร้าง 3D';
+            }
+        }
+
+        function switchInspectorTab(tab) {
+            currentInspectorTab = tab;
+            ['overview', 'structure', 'howitworks'].forEach(t => {
+                const content = document.getElementById(`insp-content-${t}`);
+                const btn = document.getElementById(`insp-tab-${t}`);
+                if (t === tab) {
+                    content.classList.remove('hidden');
+                    content.classList.add('flex');
+                    btn.className = 'insp-tab-btn py-1.5 rounded-lg text-xs font-medium bg-sky-500/20 text-sky-300 border border-sky-500/30';
+                } else {
+                    content.classList.add('hidden');
+                    content.classList.remove('flex');
+                    btn.className = 'insp-tab-btn py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white';
+                }
+            });
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+            playUISound(580, 0.09);
+
+            // Update Top Nav Buttons
+            ['explore', 'deepdive', 'humanlab', 'collision'].forEach(m => {
+                const btn = document.getElementById(`mode-btn-${m}`);
+                if (m === mode) {
+                    btn.className = 'mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-semibold transition-all flex items-center gap-2 bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/25';
+                } else {
+                    btn.className = 'mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2';
+                }
+            });
+
+            // Ensure right panel is expanded
+            if (isRightPanelCollapsed) toggleRightPanel();
+
+            const viewInspector = document.getElementById('panel-view-inspector');
+            const viewHumanLab = document.getElementById('panel-view-humanlab');
+            const viewCollision = document.getElementById('panel-view-collision');
+
+            viewInspector.classList.add('hidden');
+            viewHumanLab.classList.add('hidden');
+            viewCollision.classList.add('hidden');
+
+            if (mode === 'explore') {
+                solarSystemGroup.visible = true;
+                collisionArenaGroup.visible = false;
+                collisionState.active = false;
+                viewInspector.classList.remove('hidden');
+                switchInspectorTab('overview');
+            } else if (mode === 'deepdive') {
+                solarSystemGroup.visible = true;
+                collisionArenaGroup.visible = false;
+                collisionState.active = false;
+                viewInspector.classList.remove('hidden');
+                switchInspectorTab('structure');
+                zoomCloseToCurrentTarget();
+                if (!isCrossSectionActive) toggleCrossSection();
+            } else if (mode === 'humanlab') {
+                solarSystemGroup.visible = true;
+                collisionArenaGroup.visible = false;
+                collisionState.active = false;
+                viewHumanLab.classList.remove('hidden');
+                viewHumanLab.classList.add('flex');
+                zoomCloseToCurrentTarget();
+                updateHumanLabSimulation();
+            } else if (mode === 'collision') {
+                viewCollision.classList.remove('hidden');
+                viewCollision.classList.add('flex');
+                enterCollisionArena();
+            }
+        }
+
+        /* ============================================================================
+         * 7. HUMAN SURVIVAL & WHAT-IF TERRAFORMING SIMULATOR LOGIC
+         * ============================================================================ */
+        function selectLabSubject(subjectId) {
+            currentLabSubject = subjectId;
+            playUISound(620, 0.07);
+            ['human_naked', 'human_suit', 'water', 'plant', 'rover', 'sound_ball'].forEach(id => {
+                const btn = document.getElementById(`sub-btn-${id}`);
+                if (id === subjectId) {
+                    btn.className = 'lab-sub-btn p-2.5 rounded-xl bg-sky-500/25 border border-sky-400 text-white text-xs flex flex-col items-center gap-1 transition';
+                } else {
+                    btn.className = 'lab-sub-btn p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:text-white text-xs flex flex-col items-center gap-1 transition';
+                }
+            });
+            updateHumanLabSimulation();
+        }
+
+        function resetTerraforming() {
+            document.getElementById('tf-toggle-air').checked = false;
+            document.getElementById('tf-toggle-temp').checked = false;
+            document.getElementById('tf-toggle-mag').checked = false;
+            updateHumanLabSimulation();
+        }
+
+        function updateHumanLabSimulation() {
+            const d = CELESTIAL_DATA[currentTargetId];
+            const lab = d.labData;
+
+            const hasAir = document.getElementById('tf-toggle-air').checked;
+            const hasTemp = document.getElementById('tf-toggle-temp').checked;
+            const hasMag = document.getElementById('tf-toggle-mag').checked;
+
+            document.getElementById('lab-planet-indicator').textContent = `เป้าหมาย: ${d.emoji} ${d.name}`;
+
+            // Calculate Weight & Jump Height for 60kg human
+            const weightOnPlanet = (60 * d.gravityG).toFixed(1);
+            const jumpCm = (50 / d.gravityG).toFixed(1);
+            document.getElementById('lab-weight-calc').textContent = `${weightOnPlanet} กก.`;
+            document.getElementById('lab-jump-calc').textContent = `${jumpCm} ซม.`;
+
+            let emoji = '💀';
+            let headline = lab.nakedStatus;
+            let timerText = lab.nakedTime;
+            let primaryDesc = lab.nakedDesc;
+            let headlineColor = 'text-rose-400';
+
+            if (currentLabSubject === 'human_naked') {
+                if (currentTargetId === 'earth') {
+                    emoji = '😊';
+                    headlineColor = 'text-emerald-400';
+                } else if (hasAir && hasTemp && currentTargetId !== 'sun') {
+                    if (['mercury', 'venus', 'mars'].includes(currentTargetId)) {
+                        emoji = '🤩';
+                        headline = `มนุษย์อาศัยอยู่บน${d.name}โดยไม่ใส่ชุดอวกาศได้!`;
+                        timerText = hasMag ? 'อยู่ได้ถาวร!' : 'หลายร้อยปี (รอเติมอากาศ)';
+                        headlineColor = 'text-emerald-400';
+                        primaryDesc = `เมื่อมีอากาศหายใจ 1 บาร์และอุณหภูมิ 25 °C คุณสามารถถอดหมวกอวกาศสูดอากาศบน${d.name}ได้ทันที! น้ำหนักตัวของคุณจะอยู่ที่ ${weightOnPlanet} กก. (${d.gravityG}G) ${hasMag ? 'และมีสนามแม่เหล็กช่วยป้องกันรังสีดวงอาทิตย์อย่างสมบูรณ์' : 'แต่ระวังรังสีคอสมิกในระยะยาวเพราะยังไม่ได้เปิดสนามแม่เหล็กเทียม'}`;
+                    } else {
+                        emoji = '🪂';
+                        headline = `ต้องอาศัยบน "เมืองบอลลูนลอยฟ้า" เท่านั้น!`;
+                        timerText = 'รอดชีวิตบนบอลลูน';
+                        headlineColor = 'text-amber-300';
+                        primaryDesc = `แม้จะมีอากาศและอุณหภูมิ 25 °C แต่เพราะ${d.name}เป็นดาวเคราะห์แก๊ส/น้ำแข็งที่ไม่มีพื้นดินแข็ง คุณต้องสร้างเมืองลอยฟ้าที่ระดับความสูงความดัน 1 บาร์ โดยรับแรงโน้มถ่วง ${d.gravityG}G`;
+                    }
+                }
+            } else if (currentLabSubject === 'human_suit') {
+                emoji = currentTargetId === 'sun' ? '🔥' : (['mercury', 'earth', 'mars'].includes(currentTargetId) ? '🧑‍🚀' : '⚠️');
+                headline = currentTargetId === 'sun' ? 'ชุดอวกาศหลอมละลายทันที!' : (['mercury', 'earth', 'mars'].includes(currentTargetId) ? 'ปฏิบัติภารกิจสำรวจพื้นผิวได้!' : 'จมลงสู่ชั้นความดันสูงของดาวแก๊ส');
+                timerText = ['mercury', 'earth', 'mars'].includes(currentTargetId) ? '8 - 12 ชม. (ตามออกซิเจน)' : '< 5 นาที';
+                headlineColor = ['mercury', 'earth', 'mars'].includes(currentTargetId) ? 'text-sky-300' : 'text-amber-400';
+                primaryDesc = lab.suitDesc;
+            } else if (currentLabSubject === 'water') {
+                emoji = '💧';
+                headline = hasAir && hasTemp && currentTargetId !== 'sun' ? 'คงสภาพเป็นน้ำเหลวและเกิดเมฆฝน!' : `สถานะของน้ำ 1 ตันบน${d.name}`;
+                timerText = hasAir && hasTemp ? 'คงอยู่เป็นมหาสมุทร' : 'เปลี่ยนสถานะทันที';
+                headlineColor = 'text-sky-300';
+                primaryDesc = (hasAir && hasTemp && currentTargetId !== 'sun')
+                    ? `เมื่อปรับความดันอากาศเป็น 1 บาร์และอุณหภูมิ 25 °C น้ำ 1 ตันจะไม่เดือดหรือแข็งตัว แต่จะไหลกลายเป็นลำธารและระเหยสร้างเมฆฝนบน${d.name}!`
+                    : lab.waterDesc;
+            } else if (currentLabSubject === 'plant') {
+                emoji = '🌱';
+                headline = (hasAir && hasTemp && currentTargetId !== 'sun') ? 'พืชสังเคราะห์แสงและเติบโตได้!' : `ชะตากรรมของต้นไม้บน${d.name}`;
+                timerText = (hasAir && hasTemp && currentTargetId !== 'sun') ? 'เจริญเติบโตต่อเนื่อง' : 'ตายภายในไม่กี่วินาที';
+                headlineColor = (hasAir && hasTemp && currentTargetId !== 'sun') ? 'text-emerald-400' : 'text-amber-300';
+                primaryDesc = (hasAir && hasTemp && currentTargetId !== 'sun')
+                    ? `ต้นไม้สามารถเจริญเติบโตและผลิตออกซิเจนได้! แรงโน้มถ่วง ${d.gravityG}G จะทำให้ต้นไม้${d.gravityG < 1 ? 'สูงชะลูดกว่าบนโลกเพราะแรงดึงดูดน้อย' : 'มีลำต้นเตี้ยและแข็งแรงขึ้นเพื่อรับน้ำหนัก'}`
+                    : lab.plantDesc;
+            } else if (currentLabSubject === 'rover') {
+                emoji = '🚙';
+                headline = `การส่งหุ่นยนต์สำรวจลงบน${d.name}`;
+                timerText = ['mercury', 'earth', 'mars'].includes(currentTargetId) ? 'ทำงานได้หลายปี' : 'ถูกทำลายอย่างรวดเร็ว';
+                headlineColor = 'text-sky-300';
+                primaryDesc = lab.roverDesc;
+            } else if (currentLabSubject === 'sound_ball') {
+                emoji = '🎸';
+                headline = `ฟิสิกส์ของเสียงและการโยนลูกบอลบน${d.name}`;
+                timerText = `แรงโน้มถ่วง ${d.gravityG}G`;
+                headlineColor = 'text-purple-300';
+                primaryDesc = lab.soundDesc;
+            }
+
+            document.getElementById('lab-status-emoji').textContent = emoji;
+            document.getElementById('lab-status-headline').textContent = headline;
+            document.getElementById('lab-status-headline').className = `text-sm md:text-base font-bold ${headlineColor}`;
+            document.getElementById('lab-survival-timer').textContent = timerText;
+            document.getElementById('lab-primary-effect').textContent = primaryDesc;
+            document.getElementById('lab-atmosphere-effect').textContent = `💡 วิเคราะห์สมมติฐานการดัดแปลงดาว: ${lab.whatIfAir}`;
+
+            // Calculate Habitability Score (0 - 100%)
+            let habScore = 0;
+            if (currentTargetId === 'earth') {
+                habScore = 100;
+            } else if (currentTargetId === 'sun') {
+                habScore = 0;
+            } else {
+                const isRocky = ['mercury', 'venus', 'mars', 'pluto'].includes(currentTargetId);
+                if (isRocky) habScore += 20;
+                if (hasAir) habScore += 35;
+                if (hasTemp) habScore += 30;
+                if (hasMag) habScore += 15;
+            }
+            document.getElementById('lab-habitability-score').textContent = `${habScore}%`;
+            document.getElementById('lab-habitability-bar').style.width = `${Math.max(4, habScore)}%`;
+
+            // Update Jumper Target Label
+            const jumperLabel = document.getElementById('jumper-target-label');
+            if (jumperLabel) {
+                jumperLabel.textContent = `${d.emoji} ${d.name} (${d.gravityG}G)`;
+            }
+
+            // Update 3D Terraforming Atmosphere & Magnetosphere Meshes on the Selected Planet
+            PLANET_ORDER.forEach(pid => {
+                const p = planetMeshes[pid];
+                if (!p) return;
+                if (pid === currentTargetId && pid !== 'sun') {
+                    p.tfAtmoMesh.visible = hasAir || hasTemp;
+                    p.tfAtmoMesh.material.color.setHex(hasAir && hasTemp ? 0x10b981 : 0x38bdf8);
+                    p.tfMagGroup.visible = hasMag;
+                } else {
+                    p.tfAtmoMesh.visible = false;
+                    p.tfMagGroup.visible = false;
+                }
+            });
+        }
+
+        function triggerGravityJumpTest() {
+            playUISound(680, 0.1);
+            jumpAnimState.active = true;
+            jumpAnimState.startTime = performance.now();
+        }
+
+        function toggleCollisionSlowMo() {
+            collisionState.slowMoFactor = collisionState.slowMoFactor === 1.0 ? 0.25 : 1.0;
+            const btn = document.getElementById('btn-col-slowmo');
+            if (collisionState.slowMoFactor < 1.0) {
+                btn.textContent = '0.25x ช้า';
+                btn.classList.add('bg-amber-500/20', 'text-amber-300', 'border-amber-400/50');
+            } else {
+                btn.textContent = '1.0x';
+                btn.classList.remove('bg-amber-500/20', 'text-amber-300', 'border-amber-400/50');
+            }
+            playUISound(540, 0.08);
+        }
+
+        /* ============================================================================
+         * 8. 3D COSMIC COLLISION ARENA & SCIENTIFIC IMPACT ENGINE
+         * ============================================================================ */
+        function enterCollisionArena() {
+            solarSystemGroup.visible = false;
+            collisionArenaGroup.visible = true;
+            collisionState.active = true;
+
+            // Hide floating solar system labels in collision mode
+            Object.values(planetMeshes).forEach(p => {
+                p.labelEl.style.opacity = '0';
+                p.labelEl.style.pointerEvents = 'none';
+            });
+
+            // Position camera nicely for the collision stage
+            camTargetPos.set(0, 0, 0);
+            targetSpherical.radius = 38;
+            targetSpherical.phi = Math.PI / 2.4;
+            targetSpherical.theta = 0;
+
+            previewCollisionSetup();
+        }
+
+        function updateCollisionSliders() {
+            const vel = parseInt(document.getElementById('col-vel-slider').value, 10);
+            const angle = parseInt(document.getElementById('col-angle-slider').value, 10);
+            collisionState.velocity = vel;
+            collisionState.angleDeg = angle;
+
+            document.getElementById('col-vel-label').textContent = `${vel} กม./วินาที`;
+            let angleDesc = 'ชนประสานงาตรงกลาง';
+            if (angle >= 40) angleDesc = 'เฉี่ยวชนทำมุมเอียง (สร้างวงแหวน/ดวงจันทร์)';
+            else if (angle >= 15) angleDesc = 'ชนเกือบตรงกลาง';
+            document.getElementById('col-angle-label').textContent = `${angle}° (${angleDesc})`;
+            calculateCollisionScienceReport();
+        }
+
+        function applyCollisionPreset(targetId, impactorId, vel, angle) {
+            document.getElementById('col-target-select').value = targetId;
+            document.getElementById('col-impactor-select').value = impactorId;
+            document.getElementById('col-vel-slider').value = vel;
+            document.getElementById('col-angle-slider').value = angle;
+            updateCollisionSliders();
+            previewCollisionSetup();
+            playUISound(640, 0.08);
+        }
+
+        function previewCollisionSetup() {
+            // Clear previous arena meshes
+            while (collisionArenaGroup.children.length > 0) {
+                collisionArenaGroup.remove(collisionArenaGroup.children[0]);
+            }
+
+            const targetId = document.getElementById('col-target-select').value;
+            const impactorId = document.getElementById('col-impactor-select').value;
+            updateCollisionSliders();
+
+            const targetData = CELESTIAL_DATA[targetId] || CELESTIAL_DATA.earth;
+            const rA = targetId === 'sun' ? 6.5 : Math.max(2.4, targetData.radius3D * 1.15);
+
+            // Create Body A (Target at Origin)
+            const texA = createPlanetTexture(targetId);
+            const matA = targetId === 'sun'
+                ? new THREE.MeshBasicMaterial({ map: texA })
+                : new THREE.MeshStandardMaterial({ map: texA, roughness: 0.65 });
+            const meshA = new THREE.Mesh(new THREE.SphereGeometry(rA, 48, 48), matA);
+            meshA.position.set(-4, 0, 0);
+            collisionArenaGroup.add(meshA);
+
+            // Create Body B (Impactor at Approach Distance)
+            let rB = 1.6;
+            let texB;
+            if (impactorId === 'asteroid') {
+                rB = 0.95;
+                texB = createPlanetTexture('mercury');
+            } else if (impactorId === 'ice_comet') {
+                rB = 1.1;
+                texB = createPlanetTexture('uranus');
+            } else {
+                const impData = CELESTIAL_DATA[impactorId] || CELESTIAL_DATA.mars;
+                rB = Math.max(1.3, impData.radius3D * 0.95);
+                texB = createPlanetTexture(impactorId);
+            }
+
+            const matB = new THREE.MeshStandardMaterial({ map: texB, roughness: 0.7 });
+            const meshB = new THREE.Mesh(new THREE.SphereGeometry(rB, 36, 36), matB);
+            const yOffset = Math.sin((collisionState.angleDeg * Math.PI) / 180) * (rA + rB) * 0.75;
+            meshB.position.set(18, yOffset, 0);
+            collisionArenaGroup.add(meshB);
+
+            // Trajectory Guide Line
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(18, yOffset, 0),
+                new THREE.Vector3(-4, yOffset * 0.25, 0)
+            ]);
+            const lineMat = new THREE.LineDashedMaterial({ color: 0xf43f5e, dashSize: 0.8, gapSize: 0.5 });
+            const trajLine = new THREE.Line(lineGeo, lineMat);
+            trajLine.computeLineDistances();
+            collisionArenaGroup.add(trajLine);
+
+            collisionState.bodyA = meshA;
+            collisionState.bodyB = meshB;
+            collisionState.rA = rA;
+            collisionState.rB = rB;
+            collisionState.targetId = targetId;
+            collisionState.impactorId = impactorId;
+            collisionState.phase = 'idle';
+        }
+
+        function resetCollisionArena() {
+            previewCollisionSetup();
+            playUISound(440, 0.08);
+        }
+
+        function triggerCosmicCollision() {
+            if (collisionState.phase === 'approaching') return;
+            previewCollisionSetup();
+            collisionState.phase = 'approaching';
+            playUISound(320, 0.25);
+        }
+
+        function createImpactExplosionEffects(impactPos, isSunImpact) {
+            // 1. Expanding Shockwave Ring
+            const ringGeo = new THREE.RingGeometry(0.5, 1.4, 64);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: isSunImpact ? 0xfef08a : 0xf97316,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.95
+            });
+            const shockwave = new THREE.Mesh(ringGeo, ringMat);
+            shockwave.position.copy(impactPos);
+            shockwave.rotation.x = Math.PI / 2.3;
+            collisionArenaGroup.add(shockwave);
+            collisionState.shockwaveMesh = shockwave;
+
+            // 2. 600 Debris & Magma Particles Ejected into Space
+            const count = 650;
+            const pGeo = new THREE.BufferGeometry();
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            collisionState.debrisVelocities = [];
+
+            for (let i = 0; i < count; i++) {
+                positions[i * 3] = impactPos.x;
+                positions[i * 3 + 1] = impactPos.y;
+                positions[i * 3 + 2] = impactPos.z;
+
+                const speed = (0.12 + Math.random() * 0.45) * (collisionState.velocity / 30);
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                collisionState.debrisVelocities.push(new THREE.Vector3(
+                    Math.sin(phi) * Math.cos(theta) * speed,
+                    Math.sin(phi) * Math.sin(theta) * speed * 0.7,
+                    Math.cos(phi) * speed
+                ));
+
+                // Magma orange / yellow / glowing white debris
+                const cRand = Math.random();
+                if (cRand > 0.6) {
+                    colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.9; colors[i * 3 + 2] = 0.4;
+                } else if (cRand > 0.25) {
+                    colors[i * 3] = 0.98; colors[i * 3 + 1] = 0.35; colors[i * 3 + 2] = 0.1;
+                } else {
+                    colors[i * 3] = 0.95; colors[i * 3 + 1] = 0.15; colors[i * 3 + 2] = 0.25;
+                }
+            }
+
+            pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            pGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const pMat = new THREE.PointsMaterial({
+                size: 0.55,
+                vertexColors: true,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending
+            });
+            const debris = new THREE.Points(pGeo, pMat);
+            collisionArenaGroup.add(debris);
+            collisionState.debrisParticles = debris;
+
+            // Screen Flash & Explosion Sound
+            const flash = document.getElementById('impact-flash');
+            flash.style.opacity = '0.75';
+            setTimeout(() => { flash.style.opacity = '0'; }, 350);
+            playExplosionSound();
+
+            // Trigger 3D Camera Shockwave Shake
+            collisionState.cameraShakeIntensity = 1.6;
+
+            // Turn Body A into a glowing fractured magma world (unless it's the Sun or Jupiter)
+            if (collisionState.targetId !== 'sun') {
+                collisionState.bodyA.material.emissive = new THREE.Color(0xea580c);
+                collisionState.bodyA.material.emissiveIntensity = 0.65;
+            } else {
+                collisionState.bodyA.scale.set(1.15, 1.15, 1.15);
+            }
+        }
+
+        function calculateCollisionScienceReport() {
+            const targetId = document.getElementById('col-target-select').value;
+            const impactorId = document.getElementById('col-impactor-select').value;
+            const vel = collisionState.velocity;
+            const angle = collisionState.angleDeg;
+
+            const targetName = CELESTIAL_DATA[targetId] ? CELESTIAL_DATA[targetId].name : 'โลก';
+            const impMap = {
+                mars: 'ดาวอังคาร (ขนาดเท่าดาว Theia)',
+                asteroid: 'ดาวเคราะห์น้อยยักษ์ 100 กม.',
+                mercury: 'ดาวพุธ',
+                earth: 'โลก',
+                jupiter: 'ดาวพฤหัสบดี',
+                ice_comet: 'ดาวหางน้ำแข็งยักษ์'
+            };
+            const impName = impMap[impactorId] || impactorId;
+
+            // Calculate synthetic impact kinetic energy scale
+            const baseExponent = targetId === 'sun' || impactorId === 'jupiter' ? 36 : (impactorId === 'asteroid' || impactorId === 'ice_comet' ? 26 : 32);
+            const energyFactor = ((vel / 30) * (vel / 30) * 2.4).toFixed(1);
+            document.getElementById('col-energy-badge').textContent = `พลังงาน: ${energyFactor} × 10^${baseExponent} จูล`;
+
+            let title = '';
+            let desc = '';
+            let timeline = [];
+
+            if (targetId === 'sun') {
+                title = `☀️ ${impName} พุ่งตกลงสู่ดวงอาทิตย์: ถูกกลืนหายไปในพลาสมา!`;
+                desc = `เนื่องจากดวงอาทิตย์มีมวลคิดเป็น 99.86% ของระบบสุริยะ การที่${impName}พุ่งเข้าชนด้วยความเร็ว ${vel} กม./วินาที แรงไทดัลและความร้อนของชั้นโคโรนาจะฉีกและระเหิดดาวให้สลายเป็นพลาสมาตั้งแต่ก่อนแตะพื้นผิว เกิดเปลวสุริยะ (CME) ขนาดยักษ์พวยพุ่งออกมา แต่ดวงอาทิตย์จะยังคงส่องแสงต่อไปตามปกติ`;
+                timeline = [
+                    '⏱️ วินาทีที่ปะทะ: แรงโน้มถ่วงดวงอาทิตย์ฉีกดาวผู้ชนออกเป็นสายธารพลาสมา (Tidal Disruption)',
+                    '⏱️ +1 ชั่วโมง: เกิดพายุสุริยะและแฟลร์ระดับซุปเปอร์พุ่งกระจายออกไปทั่วระบบสุริยะ',
+                    '⏱️ อนาคตระยะยาว: มวลดวงอาทิตย์เพิ่มขึ้นเพียงเสี้ยวเปอร์เซ็นต์ ไม่กระทบสมดุลฟิวชันหลัก'
+                ];
+            } else if (targetId === 'jupiter' || impactorId === 'jupiter') {
+                title = `🟠 การปะทะระดับดาวยักษ์แก๊ส: พายุความร้อนระดับหมื่นองศา!`;
+                desc = `เมื่อเกิดการชนกับดาวพฤหัสบดีด้วยความเร็ว ${vel} กม./วินาที วัตถุที่พุ่งชนจะแหวกชั้นเมฆแอมโมเนียลงไปและระเบิดในชั้นไฮโดรเจนความดันสูง เกิดลูกไฟขนาดใหญ่กว่าโลกทั้งใบและทิ้งรอยแผลเป็นสีดำในชั้นบรรยากาศนานหลายปี`;
+                timeline = [
+                    '⏱️ วินาทีที่ปะทะ: เกิดคลื่นกระแทกความเร็วเหนือเสียงในชั้นบรรยากาศไฮโดรเจน อุณหภูมิพุ่งกว่า 15,000 °C',
+                    '⏱️ +1 สัปดาห์: กระแสลมกรดพัดเศษคาร์บอนและซิลิเกตกระจายตัวรอบเส้นศูนย์สูตรดาวพฤหัสบดี',
+                    '⏱️ อนาคตระยะยาว: ดาวพฤหัสบดีกลืนมวลทั้งหมดเข้าสู่แกนกลางโดยไม่สูญเสียวงโคจร'
+                ];
+            } else if (impactorId === 'asteroid' || impactorId === 'ice_comet') {
+                title = `☄️ มหันตภัยล้างบางชีวมณฑลบน${targetName}!`;
+                desc = `การปะทะของ${impName}ที่ความเร็ว ${vel} กม./วินาที รุนแรงกว่าอุกกาบาตยุคไดโนเสาร์ (Chicxulub) กว่า 1,000 เท่า! เปลือกดาวบริเวณจุดชนจะหลอมละลายทันที เกิดคลื่นสึนามิหินหนืดและฝุ่นบดบังแสงอาทิตย์ยาวนานหลายสิบปี`;
+                timeline = [
+                    '⏱️ วินาทีที่ปะทะ: เกิดหลุมอุกกาบาตกว้างกว่า 1,200 กม. แผ่นดินไหวระดับ 11+ ไปทั่วทั้งดวง',
+                    '⏱️ +24 ชั่วโมง: เศษหินร้อนกลับเข้ามาในชั้นบรรยากาศ ทำให้อุณหภูมิพื้นผิวสูงขึ้นเหมือนเตาอบ',
+                    `⏱️ อนาคตระยะยาว: ${impactorId === 'ice_comet' ? 'น้ำแข็งมหาศาลระเหยกลายเป็นไอน้ำและควบแน่นเป็นมหาสมุทรใหม่เมื่อดาวเย็นตัวลง' : 'เกิดฤดูหนาวนิวเคลียร์ยาวนาน ก่อนที่ระบบนิเวศยุคใหม่จะฟื้นตัวในอีกหลายล้านปี'}`
+                ];
+            } else {
+                // Planet-on-Planet Giant Impact (e.g., Earth vs Mars / Theia)
+                const isOblique = angle >= 30;
+                title = `💥 มหาชนดาวเคราะห์ (${targetName} × ${impName}): กำเนิดดาวมหาสมุทรหินหนืดและดวงจันทร์ใหม่!`;
+                desc = `การชนกันของดาวเคราะห์หินด้วยความเร็ว ${vel} กม./วินาที ที่มุม ${angle}° จะปลดปล่อยพลังงานมหาศาลจนเปลือกและเนื้อดาวทั้งดวงหลอมละลายกลายเป็น "มหาสมุทรแมกมา (Magma Ocean)" ${isOblique ? 'มุมชนที่เฉียงทำให้เนื้อดาวส่วนหนึ่งเหวี่ยงออกไปโคจรรอบดาวและรวมตัวเป็นดวงจันทร์ดวงใหม่!' : 'การชนประสานงาทำให้แกนเหล็กของดาวทั้งสองหลอมรวมเป็นแกนเดียวขนาดใหญ่ขึ้น!'}`;
+                timeline = [
+                    '⏱️ +1 ชั่วโมงหลังชน: เปลือกดาวทั้งหมดกลายเป็นทะเลลาวาเดือด อุณหภูมิพื้นผิวพุ่งสูงกว่า 4,000 °C',
+                    '⏱️ +1 เดือน: เศษซากหินและโลหะที่กระเด็นขึ้นสู่วงโคจรกระจายตัวเป็น "วงแหวนหินไฟ" ล้อมรอบดาว',
+                    '⏱️ +100 ถึง 10,000 ปี: วงแหวนเศษซากค่อยๆ รวมตัวกันด้วยแรงโน้มถ่วง กลายเป็น "ดวงจันทร์ดวงใหม่" และแกนหมุนของดาวเปลี่ยนองศาไปตลอดกาล!'
+                ];
+            }
+
+            document.getElementById('col-outcome-title').textContent = title;
+            document.getElementById('col-outcome-desc').textContent = desc;
+            document.getElementById('col-timeline-list').innerHTML = timeline.map(item => `
+                <div class="p-2 rounded-xl bg-slate-900/90 border border-slate-800/90">${item}</div>
+            `).join('');
+        }
+
+        /* ============================================================================
+         * 9. HUD UTILITY CONTROLS & WEB AUDIO SYNTHESIZER
+         * ============================================================================ */
+        function updateTimeSpeed(val) {
+            timeMultiplier = parseFloat(val);
+            isTimePaused = timeMultiplier === 0;
+            document.getElementById('time-speed-label').textContent = isTimePaused ? 'หยุดนิ่ง (0.0x)' : `${timeMultiplier.toFixed(1)}x`;
+            document.getElementById('pause-icon').className = isTimePaused ? 'fa-solid fa-play text-emerald-400' : 'fa-solid fa-pause';
+        }
+
+        function togglePauseTime() {
+            isTimePaused = !isTimePaused;
+            const slider = document.getElementById('time-speed-slider');
+            if (isTimePaused) {
+                document.getElementById('time-speed-label').textContent = 'หยุดนิ่ง (Paused)';
+                document.getElementById('pause-icon').className = 'fa-solid fa-play text-emerald-400';
+            } else {
+                if (timeMultiplier === 0) {
+                    timeMultiplier = 1.0;
+                    slider.value = 1.0;
+                }
+                document.getElementById('time-speed-label').textContent = `${timeMultiplier.toFixed(1)}x`;
+                document.getElementById('pause-icon').className = 'fa-solid fa-pause';
+            }
+            playUISound(480, 0.06);
+        }
+
+        function toggleOrbits() {
+            showOrbits = !showOrbits;
+            PLANET_ORDER.forEach(id => {
+                const p = planetMeshes[id];
+                if (p && p.orbitLine) p.orbitLine.visible = showOrbits;
+            });
+            const btn = document.getElementById('btn-toggle-orbits');
+            btn.className = showOrbits
+                ? 'p-2 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-500/30 text-xs transition'
+                : 'p-2 rounded-xl bg-slate-800/80 text-slate-400 border border-slate-700/60 text-xs transition';
+            playUISound(520, 0.06);
+        }
+
+        function toggleLabels() {
+            showLabels = !showLabels;
+            const btn = document.getElementById('btn-toggle-labels');
+            btn.className = showLabels
+                ? 'p-2 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-500/30 text-xs transition'
+                : 'p-2 rounded-xl bg-slate-800/80 text-slate-400 border border-slate-700/60 text-xs transition';
+            playUISound(520, 0.06);
+        }
+
+        function toggleRightPanel() {
+            isRightPanelCollapsed = !isRightPanelCollapsed;
+            const body = document.getElementById('right-panel-body');
+            const text = document.getElementById('collapse-panel-text');
+            const icon = document.getElementById('collapse-panel-icon');
+
+            if (isRightPanelCollapsed) {
+                body.classList.add('hidden');
+                text.textContent = 'แสดงหน้าต่างข้อมูล';
+                icon.className = 'fa-solid fa-chevron-left';
+            } else {
+                body.classList.remove('hidden');
+                text.textContent = 'ซ่อนหน้าต่างข้อมูล';
+                icon.className = 'fa-solid fa-chevron-right';
+            }
+        }
+
+        function openKnowledgeModal() {
+            const modal = document.getElementById('knowledge-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            playUISound(600, 0.09);
+        }
+
+        function closeKnowledgeModal() {
+            const modal = document.getElementById('knowledge-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            playUISound(450, 0.07);
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled && !audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) audioCtx = new AudioContextClass();
+            }
+            const btn = document.getElementById('btn-toggle-sound');
+            const icon = document.getElementById('sound-icon');
+            if (soundEnabled) {
+                btn.className = 'p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs transition';
+                icon.className = 'fa-solid fa-volume-high';
+                playUISound(660, 0.1);
+            } else {
+                btn.className = 'p-2 rounded-xl bg-slate-800/80 text-slate-400 hover:text-white border border-slate-700/60 text-xs transition';
+                icon.className = 'fa-solid fa-volume-xmark';
+            }
+        }
+
+        function playUISound(freq = 520, duration = 0.08) {
+            if (!soundEnabled || !audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        function playExplosionSound() {
+            if (!soundEnabled || !audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(28, audioCtx.currentTime + 0.85);
+                gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.85);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.85);
+            } catch (e) {}
+        }
+
+        /* ============================================================================
+         * 10. MAIN 3D ANIMATION & PHYSICS LOOP
+         * ============================================================================ */
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const effectiveSpeed = isTimePaused ? 0 : timeMultiplier;
+
+            // 1. Update Solar System Planets Orbit & Rotation
+            if (!collisionState.active) {
+                PLANET_ORDER.forEach(id => {
+                    const p = planetMeshes[id];
+                    if (!p) return;
+
+                    // Orbit around Sun
+                    if (p.data.distance3D > 0 && effectiveSpeed > 0) {
+                        p.angle += p.data.orbitSpeed * effectiveSpeed * 0.35;
+                        p.group.position.x = Math.cos(p.angle) * p.data.distance3D;
+                        p.group.position.z = Math.sin(p.angle) * p.data.distance3D;
+                    }
+
+                    // Rotate around own axis
+                    p.mesh.rotation.y += p.data.rotationSpeed * (effectiveSpeed * 0.6 + 0.4);
+                    p.coreGroup.rotation.y += 0.005;
+                    if (p.tfMagGroup && p.tfMagGroup.visible) {
+                        p.tfMagGroup.rotation.y += 0.015;
+                        p.tfMagGroup.rotation.z = Math.sin(Date.now() * 0.002) * 0.15;
+                    }
+
+                    if (p.moonPivot) {
+                        p.moonPivot.rotation.y += 0.025 * (effectiveSpeed + 0.2);
+                    }
+                });
+
+                // Lock Camera Target onto Currently Selected Planet
+                const targetObj = planetMeshes[currentTargetId];
+                if (targetObj) {
+                    camTargetPos.copy(targetObj.group.position);
+                }
+            } else {
+                // 2. Update 3D Cosmic Collision Arena Physics
+                if (collisionState.bodyA) collisionState.bodyA.rotation.y += 0.006;
+                if (collisionState.bodyB) collisionState.bodyB.rotation.y += 0.012;
+
+                if (collisionState.phase === 'approaching') {
+                    const step = (0.22 + (collisionState.velocity / 120) * 0.35) * collisionState.slowMoFactor;
+                    collisionState.bodyB.position.x -= step;
+                    const dist = collisionState.bodyA.position.distanceTo(collisionState.bodyB.position);
+
+                    if (dist <= (collisionState.rA + collisionState.rB) * 0.82) {
+                        collisionState.phase = 'impact';
+                        const impactPoint = new THREE.Vector3().lerpVectors(
+                            collisionState.bodyA.position,
+                            collisionState.bodyB.position,
+                            0.5
+                        );
+                        collisionState.bodyB.visible = false;
+                        createImpactExplosionEffects(impactPoint, collisionState.targetId === 'sun');
+                    }
+                } else if (collisionState.phase === 'impact') {
+                    // Expand Shockwave Ring
+                    if (collisionState.shockwaveMesh) {
+                        const scaleStep = 1 + 0.07 * collisionState.slowMoFactor;
+                        collisionState.shockwaveMesh.scale.multiplyScalar(scaleStep);
+                        collisionState.shockwaveMesh.material.opacity *= (1 - 0.05 * collisionState.slowMoFactor);
+                    }
+                    // Eject & Orbit Debris Particles
+                    if (collisionState.debrisParticles) {
+                        const posAttr = collisionState.debrisParticles.geometry.attributes.position;
+                        for (let i = 0; i < collisionState.debrisVelocities.length; i++) {
+                            const v = collisionState.debrisVelocities[i];
+                            posAttr.array[i * 3] += v.x * collisionState.slowMoFactor;
+                            posAttr.array[i * 3 + 1] += v.y * collisionState.slowMoFactor;
+                            posAttr.array[i * 3 + 2] += v.z * collisionState.slowMoFactor;
+                            // Slight gravitational pull back toward Body A to form a ring
+                            v.multiplyScalar(0.988);
+                        }
+                        posAttr.needsUpdate = true;
+                    }
+                }
+            }
+
+            // 2.5 Animate Gravity Jump Comparison Box
+            if (jumpAnimState.active) {
+                const elapsed = (performance.now() - jumpAnimState.startTime) / 1000; // seconds
+                const d = CELESTIAL_DATA[currentTargetId];
+
+                // Earth jump duration ~ 0.9s, max visual height 42px
+                const earthDuration = 0.85;
+                let earthY = 0;
+                if (elapsed < earthDuration) {
+                    const tNorm = elapsed / earthDuration;
+                    earthY = -4 * 42 * tNorm * (1 - tNorm);
+                }
+
+                // Target planet jump duration & height scaled by gravityG
+                const gClamped = Math.max(0.06, Math.min(28, d.gravityG));
+                const targetDuration = Math.min(2.8, Math.max(0.18, 0.85 / Math.sqrt(gClamped)));
+                const targetMaxH = Math.min(54, Math.max(2, 42 / gClamped));
+                let targetY = 0;
+                if (elapsed < targetDuration) {
+                    const tNorm2 = elapsed / targetDuration;
+                    targetY = -4 * targetMaxH * tNorm2 * (1 - tNorm2);
+                }
+
+                const elEarth = document.getElementById('jumper-earth');
+                const elTarget = document.getElementById('jumper-target');
+                if (elEarth) elEarth.style.transform = `translateY(${earthY.toFixed(1)}px)`;
+                if (elTarget) elTarget.style.transform = `translateY(${targetY.toFixed(1)}px)`;
+
+                if (elapsed > Math.max(earthDuration, targetDuration)) {
+                    jumpAnimState.active = false;
+                }
+            }
+
+            // 3. Smooth Camera Interpolation
+            spherical.radius += (targetSpherical.radius - spherical.radius) * 0.08;
+            spherical.phi += (targetSpherical.phi - spherical.phi) * 0.08;
+            spherical.theta += (targetSpherical.theta - spherical.theta) * 0.08;
+
+            camCurrentLookAt.lerp(camTargetPos, 0.1);
+
+            let cx = camCurrentLookAt.x + spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+            let cy = camCurrentLookAt.y + spherical.radius * Math.cos(spherical.phi);
+            let cz = camCurrentLookAt.z + spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+
+            // Apply Camera Shake on Cosmic Collision Impact
+            if (collisionState.cameraShakeIntensity > 0.01) {
+                cx += (Math.random() - 0.5) * collisionState.cameraShakeIntensity;
+                cy += (Math.random() - 0.5) * collisionState.cameraShakeIntensity;
+                cz += (Math.random() - 0.5) * collisionState.cameraShakeIntensity;
+                collisionState.cameraShakeIntensity *= 0.92;
+            }
+
+            camera.position.set(cx, cy, cz);
+            camera.lookAt(camCurrentLookAt);
+
+            // 4. Update Floating 3D HTML Labels
+            if (!collisionState.active) {
+                PLANET_ORDER.forEach(id => {
+                    const p = planetMeshes[id];
+                    if (!p) return;
+                    if (!showLabels) {
+                        p.labelEl.style.opacity = '0';
+                        p.labelEl.style.pointerEvents = 'none';
+                        return;
+                    }
+
+                    const worldPos = p.group.position.clone();
+                    worldPos.y += p.data.radius3D + 1.2;
+                    worldPos.project(camera);
+
+                    // Check if in front of camera
+                    if (worldPos.z < 1) {
+                        const x = (worldPos.x * 0.5 + 0.5) * window.innerWidth;
+                        const y = (-(worldPos.y * 0.5) + 0.5) * window.innerHeight;
+                        p.labelEl.style.left = `${x}px`;
+                        p.labelEl.style.top = `${y}px`;
+                        p.labelEl.style.opacity = id === currentTargetId ? '1' : '0.82';
+                        p.labelEl.style.pointerEvents = 'auto';
+                    } else {
+                        p.labelEl.style.opacity = '0';
+                        p.labelEl.style.pointerEvents = 'none';
+                    }
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Start Application on Window Load
+        window.onload = function () {
+            initThreeScene();
+            buildBottomPlanetDock();
+            selectPlanet('earth', false); // Start highlighting Earth while showing good overview
+            targetSpherical.radius = 75;
+            animate();
+        };
+    
+        // ===== Layout fixes: keep HUD panels below the (wrapping) header =====
+        function syncHeaderHeight() {
+            const h = document.querySelector('header');
+            if (!h) return;
+            document.documentElement.style.setProperty('--hdr-h', Math.ceil(h.getBoundingClientRect().height) + 'px');
+        }
+        window.addEventListener('load', () => {
+            syncHeaderHeight();
+            const h = document.querySelector('header');
+            if (window.ResizeObserver && h) new ResizeObserver(syncHeaderHeight).observe(h);
+            // Phones: start with the info panel folded so the 3D scene is visible
+            if (window.innerWidth < 768 && !isRightPanelCollapsed) toggleRightPanel();
+        });
+        window.addEventListener('resize', syncHeaderHeight);
+</script>
+</body>
+</html>
