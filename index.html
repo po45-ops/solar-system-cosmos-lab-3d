@@ -2,7 +2,7 @@
 <html lang="th" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
     <title>COSMOS LAB | สื่อการเรียนรู้ระบบสุริยะและการจำลองสมมติฐานจักรวาล 3D</title>
     
     <!-- Tailwind CSS -->
@@ -46,20 +46,31 @@
     </script>
 
     <style>
+        :root {
+            --hdr-h: 76px;
+            --ftr-h: 74px;
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --safe-left: env(safe-area-inset-left, 0px);
+            --safe-right: env(safe-area-inset-right, 0px);
+        }
         * {
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
         body, html {
             margin: 0;
             padding: 0;
             width: 100%;
-            height: 100%;
+            height: 100vh;
+            height: 100dvh;
             overflow: hidden;
             background-color: #030611;
             color: #f8fafc;
             font-family: 'Prompt', sans-serif;
+            touch-action: none;
         }
         #canvas-container {
             position: absolute;
@@ -68,29 +79,32 @@
             height: 100%;
             z-index: 1;
             cursor: grab;
+            touch-action: none;
         }
         #canvas-container:active {
             cursor: grabbing;
         }
         /* Glassmorphism HUD Surfaces */
         .hud-glass {
-            background: rgba(9, 14, 32, 0.76);
+            background: rgba(9, 14, 32, 0.78);
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
-            border: 1px solid rgba(56, 189, 248, 0.18);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
         }
         .hud-glass-amber {
-            background: rgba(24, 14, 8, 0.82);
+            background: rgba(24, 14, 8, 0.84);
             backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
             border: 1px solid rgba(245, 158, 11, 0.3);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(251, 191, 36, 0.12);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(251, 191, 36, 0.12);
         }
         .hud-glass-danger {
-            background: rgba(28, 8, 18, 0.82);
+            background: rgba(28, 8, 18, 0.84);
             backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
             border: 1px solid rgba(244, 63, 94, 0.35);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(244, 63, 94, 0.15);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(244, 63, 94, 0.15);
         }
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
@@ -120,15 +134,18 @@
         /* Range Slider Styling */
         input[type=range] {
             -webkit-appearance: none;
+            appearance: none;
             background: rgba(30, 41, 59, 0.9);
             height: 6px;
             border-radius: 999px;
             outline: none;
+            touch-action: pan-y;
         }
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
-            width: 18px;
-            height: 18px;
+            appearance: none;
+            width: 20px;
+            height: 20px;
             border-radius: 50%;
             background: #38bdf8;
             cursor: pointer;
@@ -137,7 +154,7 @@
             transition: transform 0.15s ease;
         }
         input[type=range]::-webkit-slider-thumb:hover {
-            transform: scale(1.2);
+            transform: scale(1.18);
         }
         /* 3D Floating Planet Labels */
         .planet-label-3d {
@@ -147,6 +164,7 @@
             transform: translate(-50%, -140%);
             transition: opacity 0.2s ease, transform 0.2s ease;
             z-index: 5;
+            white-space: nowrap;
         }
         .planet-label-3d:hover {
             transform: translate(-50%, -150%) scale(1.08);
@@ -157,6 +175,237 @@
             background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(56, 189, 248, 0.02) 50%, rgba(56, 189, 248, 0.02));
             background-size: 100% 4px;
             pointer-events: none;
+        }
+
+        /* =====================================================================
+         * MULTI-DEVICE RESPONSIVE HUD ARCHITECTURE (Phone / iPad / Notebook)
+         * ===================================================================== */
+        #top-header {
+            padding-top: calc(0.5rem + var(--safe-top));
+            padding-left: calc(0.75rem + var(--safe-left));
+            padding-right: calc(0.75rem + var(--safe-right));
+        }
+        #bottom-dock {
+            padding-bottom: calc(0.5rem + var(--safe-bottom));
+            padding-left: calc(0.75rem + var(--safe-left));
+            padding-right: calc(0.75rem + var(--safe-right));
+        }
+        .mode-btn {
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        #top-header nav, #bottom-dock > div {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-x;
+        }
+        #top-header nav::-webkit-scrollbar,
+        #bottom-dock > div::-webkit-scrollbar {
+            display: none;
+        }
+        #right-panel-body {
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+        }
+        #left-hud-panel, #right-main-panel {
+            top: calc(var(--hdr-h) + 8px) !important;
+        }
+        #left-hud-panel {
+            max-height: calc(100dvh - var(--hdr-h) - var(--ftr-h) - 16px);
+            overflow-y: auto;
+            touch-action: pan-y;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        #right-main-panel {
+            bottom: calc(var(--ftr-h) + 8px) !important;
+            transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* 1. Tablet / iPad Portrait & Compact Laptops (768px - 1100px) */
+        @media (min-width: 768px) and (max-width: 1100px) {
+            #top-header {
+                gap: 0.45rem;
+            }
+            #left-hud-panel {
+                max-width: 245px;
+                left: 0.75rem;
+            }
+            #right-main-panel {
+                width: 350px;
+                right: 0.75rem;
+            }
+        }
+
+        /* 2. Mobile Phones Portrait (< 768px) */
+        @media (max-width: 767px) {
+            #top-header {
+                gap: 0.35rem !important;
+                padding-bottom: 0.35rem;
+            }
+            #top-header .brand-card {
+                padding: 0.35rem 0.65rem;
+                gap: 0.5rem;
+            }
+            #top-header .brand-icon {
+                width: 2rem;
+                height: 2rem;
+            }
+            #top-header nav {
+                order: 3;
+                width: 100%;
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 0.25rem;
+                padding: 0.25rem;
+            }
+            #top-header nav .mode-btn {
+                padding: 0.4rem 0.2rem;
+                font-size: 10.5px;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                gap: 0.15rem;
+                text-align: center;
+                border-radius: 0.65rem;
+            }
+            #top-header nav .mode-btn i {
+                font-size: 12px;
+            }
+            #top-header nav .mode-btn span {
+                display: block;
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                line-height: 1.15;
+            }
+            /* Compact Left HUD on Mobile */
+            #left-hud-panel {
+                left: 0.5rem;
+                right: 0.5rem;
+                max-width: none;
+                flex-direction: row;
+                align-items: stretch;
+                gap: 0.4rem;
+            }
+            #left-hud-panel #target-lock-card {
+                flex: 1 1 auto;
+                padding: 0.5rem 0.65rem;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+            #left-hud-panel #target-lock-header {
+                display: none;
+            }
+            #left-hud-panel #hud-target-badge {
+                width: 2rem;
+                height: 2rem;
+                font-size: 1rem;
+                border-radius: 0.5rem;
+            }
+            #left-hud-panel #hud-target-name {
+                font-size: 0.85rem;
+            }
+            #left-hud-panel #hud-target-en {
+                font-size: 10px;
+            }
+            #left-hud-panel #target-action-btns {
+                margin-top: 0.4rem;
+                padding-top: 0.35rem;
+                gap: 0.35rem;
+            }
+            #left-hud-panel #target-action-btns button {
+                padding: 0.3rem 0.45rem;
+                font-size: 11px;
+            }
+            #left-hud-panel #time-controller-card {
+                width: 118px;
+                flex-shrink: 0;
+                padding: 0.5rem 0.55rem;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            }
+            #left-hud-panel #gesture-hint-card {
+                display: none;
+            }
+            /* Mobile Bottom Sheet for Right Main Panel */
+            #right-main-panel {
+                top: auto !important;
+                left: 0.5rem;
+                right: 0.5rem;
+                width: calc(100vw - 1rem);
+                bottom: calc(var(--ftr-h) + 6px) !important;
+                height: 44dvh;
+                max-height: calc(100dvh - var(--hdr-h) - var(--ftr-h) - 14px);
+            }
+            #right-main-panel.mobile-sheet-expanded {
+                height: calc(100dvh - var(--hdr-h) - var(--ftr-h) - 14px);
+            }
+            #right-main-panel.panel-is-collapsed {
+                height: auto !important;
+            }
+            body.mobile-sheet-full #left-hud-panel {
+                opacity: 0;
+                pointer-events: none;
+                transform: translateY(-8px);
+            }
+            .planet-label-3d {
+                font-size: 10px !important;
+                padding: 2px 7px !important;
+            }
+        }
+
+        /* 3. Mobile & Compact Landscape Mode (e.g., Phone turned sideways: max-height 540px) */
+        @media (max-height: 540px) and (orientation: landscape) {
+            #top-header {
+                padding-top: 0.35rem;
+                padding-bottom: 0.35rem;
+                gap: 0.35rem;
+            }
+            #top-header .brand-card {
+                padding: 0.25rem 0.6rem;
+            }
+            #top-header .brand-icon {
+                width: 1.75rem;
+                height: 1.75rem;
+            }
+            #top-header nav {
+                order: 0;
+                width: auto;
+                display: flex;
+            }
+            #top-header nav .mode-btn {
+                flex-direction: row;
+                padding: 0.3rem 0.55rem;
+                font-size: 11px;
+            }
+            #left-hud-panel {
+                left: calc(0.5rem + var(--safe-left));
+                right: auto;
+                width: 215px;
+                max-width: 215px;
+                flex-direction: column;
+            }
+            #left-hud-panel #time-controller-card {
+                width: 100%;
+            }
+            #left-hud-panel #gesture-hint-card {
+                display: none;
+            }
+            #right-main-panel {
+                top: calc(var(--hdr-h) + 6px) !important;
+                bottom: calc(var(--ftr-h) + 6px) !important;
+                right: calc(0.5rem + var(--safe-right));
+                left: auto;
+                width: min(360px, 48vw);
+                height: auto !important;
+            }
+            #bottom-dock {
+                padding-top: 0.25rem;
+                padding-bottom: calc(0.25rem + var(--safe-bottom));
+            }
         }
     </style>
 </head>
@@ -172,51 +421,51 @@
     <div id="impact-flash" class="fixed inset-0 bg-white pointer-events-none opacity-0 transition-opacity duration-700 z-40"></div>
 
     <!-- TOP NAVIGATION BAR -->
-    <header class="fixed top-0 left-0 right-0 z-30 p-3 md:px-6 md:py-3.5 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
+    <header id="top-header" class="fixed top-0 left-0 right-0 z-30 p-2.5 md:px-5 md:py-3 flex flex-wrap items-center justify-between gap-2 md:gap-3 pointer-events-none">
         <!-- Brand Logo & Status -->
-        <div class="hud-glass rounded-2xl px-4 py-2.5 flex items-center gap-3.5 pointer-events-auto">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 flex items-center justify-center shadow-lg shadow-orange-500/30 relative">
-                <i class="fa-solid fa-sun text-white text-lg animate-spin" style="animation-duration: 18s;"></i>
-                <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-sky-400 border-2 border-slate-950"></span>
+        <div class="brand-card hud-glass rounded-2xl px-3.5 py-2 flex items-center gap-3 pointer-events-auto">
+            <div class="brand-icon w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 flex items-center justify-center shadow-lg shadow-orange-500/30 relative shrink-0">
+                <i class="fa-solid fa-sun text-white text-base md:text-lg animate-spin" style="animation-duration: 18s;"></i>
+                <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-sky-400 border-2 border-slate-950"></span>
             </div>
             <div>
-                <div class="flex items-center gap-2">
-                    <h1 class="font-display font-bold text-base md:text-lg tracking-wider bg-gradient-to-r from-white via-sky-200 to-amber-200 bg-clip-text text-transparent">
+                <div class="flex items-center gap-1.5">
+                    <h1 class="font-display font-bold text-sm sm:text-base md:text-lg tracking-wider bg-gradient-to-r from-white via-sky-200 to-amber-200 bg-clip-text text-transparent">
                         COSMOS LAB
                     </h1>
-                    <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
-                        3D INTERACTIVE
+                    <span class="text-[9px] md:text-[10px] font-mono uppercase px-1.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                        3D
                     </span>
                 </div>
-                <p class="text-[11px] text-slate-400 hidden sm:block">ระบบสุริยะ ดวงอาทิตย์ และการจำลองสมมติฐานอวกาศ</p>
+                <p class="text-[11px] text-slate-400 hidden lg:block">ระบบสุริยะ ดวงอาทิตย์ และการจำลองสมมติฐานอวกาศ</p>
             </div>
         </div>
 
         <!-- Primary Mode Switcher (4 Modes) -->
-        <nav class="hud-glass rounded-2xl p-1.5 flex items-center gap-1 pointer-events-auto overflow-x-auto max-w-full">
-            <button onclick="switchMode('explore')" id="mode-btn-explore" class="mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-medium transition-all flex items-center gap-2 bg-sky-500 text-slate-950 font-semibold shadow-lg shadow-sky-500/25">
+        <nav class="hud-glass rounded-2xl p-1 md:p-1.5 flex items-center gap-1 pointer-events-auto overflow-x-auto max-w-full">
+            <button onclick="switchMode('explore')" id="mode-btn-explore" title="สำรวจระบบสุริยะ" class="mode-btn px-3 py-1.5 md:px-3.5 md:py-2 rounded-xl text-xs md:text-sm font-semibold transition-all flex items-center gap-1.5 md:gap-2 bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/25">
                 <i class="fa-solid fa-compass"></i>
-                <span>สำรวจระบบสุริยะ</span>
+                <span>สำรวจดาว</span>
             </button>
-            <button onclick="switchMode('deepdive')" id="mode-btn-deepdive" class="mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2">
+            <button onclick="switchMode('deepdive')" id="mode-btn-deepdive" title="เจาะลึก & ผ่าโครงสร้าง" class="mode-btn px-3 py-1.5 md:px-3.5 md:py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1.5 md:gap-2">
                 <i class="fa-solid fa-magnifying-glass-chart"></i>
-                <span>เจาะลึก & ผ่าโครงสร้าง</span>
+                <span>ผ่าโครงสร้าง</span>
             </button>
-            <button onclick="switchMode('humanlab')" id="mode-btn-humanlab" class="mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2">
+            <button onclick="switchMode('humanlab')" id="mode-btn-humanlab" title="จำลองไปเยือน & ดัดแปลงดาว" class="mode-btn px-3 py-1.5 md:px-3.5 md:py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1.5 md:gap-2">
                 <i class="fa-solid fa-user-astronaut text-emerald-400"></i>
-                <span>จำลองไปเยือน & ดัดแปลงดาว</span>
+                <span>ทดลองไปเยือน</span>
             </button>
-            <button onclick="switchMode('collision')" id="mode-btn-collision" class="mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2">
+            <button onclick="switchMode('collision')" id="mode-btn-collision" title="จำลองการพุ่งชน" class="mode-btn px-3 py-1.5 md:px-3.5 md:py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1.5 md:gap-2">
                 <i class="fa-solid fa-meteor text-rose-400"></i>
-                <span>จำลองการพุ่งชน</span>
+                <span>จำลองพุ่งชน</span>
             </button>
         </nav>
 
         <!-- Quick Utility Controls -->
-        <div class="hud-glass rounded-2xl px-3 py-2 flex items-center gap-2 pointer-events-auto">
+        <div class="hud-glass rounded-2xl px-2.5 py-1.5 md:px-3 md:py-2 flex items-center gap-1.5 md:gap-2 pointer-events-auto">
             <button onclick="resetCameraOverview()" title="มุมมองภาพรวมระบบสุริยะ" class="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-sky-500/20 text-slate-200 hover:text-sky-300 border border-slate-700/60 text-xs flex items-center gap-1.5 transition">
                 <i class="fa-solid fa-expand"></i>
-                <span class="hidden lg:inline">มุมมองรวม</span>
+                <span class="hidden sm:inline">มุมมองรวม</span>
             </button>
             <button onclick="toggleOrbits()" id="btn-toggle-orbits" title="เปิด/ปิด เส้นวงโคจร" class="p-2 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-500/30 text-xs transition">
                 <i class="fa-solid fa-circle-nodes"></i>
@@ -234,77 +483,81 @@
     </header>
 
     <!-- LEFT FLOATING MINI TELEMETRY & TIME CONTROL -->
-    <div id="left-hud-panel" class="fixed top-20 left-3 md:left-6 z-20 flex flex-col gap-3 pointer-events-none max-w-xs">
+    <div id="left-hud-panel" class="fixed top-20 left-3 md:left-5 z-20 flex flex-col gap-2.5 pointer-events-none max-w-xs">
         <!-- Active Target Status Pill -->
-        <div class="hud-glass rounded-2xl p-3.5 pointer-events-auto transition-all">
-            <div class="flex items-center justify-between gap-4 mb-2">
-                <span class="text-[11px] font-mono uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+        <div id="target-lock-card" class="hud-glass rounded-2xl p-3 md:p-3.5 pointer-events-auto transition-all">
+            <div id="target-lock-header" class="flex items-center justify-between gap-3 mb-2">
+                <span class="text-[10px] font-mono uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
                     <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
                     TARGET LOCK
                 </span>
-                <span id="hud-target-type" class="text-[10px] px-2 py-0.5 rounded-md bg-white/10 text-slate-300">ดาวฤกษ์ศูนย์กลาง</span>
+                <span id="hud-target-type" class="text-[10px] px-2 py-0.5 rounded-md bg-white/10 text-slate-300 truncate max-w-[150px]">ดาวฤกษ์ศูนย์กลาง</span>
             </div>
-            <div class="flex items-center gap-3">
-                <div id="hud-target-badge" class="w-11 h-11 rounded-xl flex items-center justify-center text-xl font-bold shadow-inner border border-white/15" style="background: radial-gradient(circle at 30% 30%, #fde047, #ea580c);">
+            <div class="flex items-center gap-2.5 md:gap-3">
+                <div id="hud-target-badge" class="w-10 h-10 md:w-11 md:h-11 rounded-xl flex items-center justify-center text-xl font-bold shadow-inner border border-white/15 shrink-0" style="background: radial-gradient(circle at 30% 30%, #fde047, #ea580c);">
                     ☀️
                 </div>
-                <div>
-                    <h2 id="hud-target-name" class="text-lg font-bold text-white leading-tight">ดวงอาทิตย์ (The Sun)</h2>
-                    <p id="hud-target-en" class="text-xs text-slate-400 font-mono">Sol • G2V Main-Sequence Star</p>
+                <div class="min-w-0">
+                    <h2 id="hud-target-name" class="text-base md:text-lg font-bold text-white leading-tight truncate">ดวงอาทิตย์ (Sun)</h2>
+                    <p id="hud-target-en" class="text-[11px] text-slate-400 font-mono truncate">Sol • G2V Star</p>
                 </div>
             </div>
             <!-- Camera Zoom Action Buttons -->
-            <div class="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-800/80">
-                <button onclick="zoomCloseToCurrentTarget()" class="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/40 text-sky-200 text-xs font-medium flex items-center justify-center gap-1.5 transition">
-                    <i class="fa-solid fa-magnifying-glass-plus"></i> ซูมดูใกล้ๆ
+            <div id="target-action-btns" class="grid grid-cols-2 gap-1.5 md:gap-2 mt-2.5 pt-2 border-t border-slate-800/80">
+                <button onclick="zoomCloseToCurrentTarget()" class="px-2.5 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/40 text-sky-200 text-xs font-medium flex items-center justify-center gap-1.5 transition">
+                    <i class="fa-solid fa-magnifying-glass-plus"></i> <span>ซูมใกล้ๆ</span>
                 </button>
-                <button onclick="toggleCrossSection()" id="btn-cross-section" class="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-amber-200 text-xs font-medium flex items-center justify-center gap-1.5 transition">
-                    <i class="fa-solid fa-layer-group"></i> ผ่าดูแกนดาว
+                <button onclick="toggleCrossSection()" id="btn-cross-section" class="px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-amber-200 text-xs font-medium flex items-center justify-center gap-1.5 transition">
+                    <i class="fa-solid fa-layer-group"></i> <span>ผ่าแกนดาว</span>
                 </button>
             </div>
         </div>
 
         <!-- Time Simulation Speed Controller -->
-        <div id="time-controller-card" class="hud-glass rounded-2xl p-3.5 pointer-events-auto">
-            <div class="flex items-center justify-between text-xs mb-2">
-                <span class="text-slate-300 flex items-center gap-1.5">
-                    <i class="fa-solid fa-clock-rotate-left text-sky-400"></i> ความเร็วการโคจร
+        <div id="time-controller-card" class="hud-glass rounded-2xl p-3 md:p-3.5 pointer-events-auto">
+            <div class="flex items-center justify-between text-[11px] md:text-xs mb-1.5">
+                <span class="text-slate-300 flex items-center gap-1">
+                    <i class="fa-solid fa-clock-rotate-left text-sky-400"></i> <span class="hidden sm:inline">ความเร็ว</span>โคจร
                 </span>
-                <span id="time-speed-label" class="font-mono text-sky-300 font-semibold">1.0x ปกติ</span>
+                <span id="time-speed-label" class="font-mono text-sky-300 font-semibold text-[11px]">1.0x</span>
             </div>
-            <div class="flex items-center gap-2">
-                <button onclick="togglePauseTime()" id="btn-pause-time" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center text-xs border border-slate-700">
+            <div class="flex items-center gap-1.5 md:gap-2">
+                <button onclick="togglePauseTime()" id="btn-pause-time" title="หยุด/เล่นเวลา" class="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center text-xs border border-slate-700 shrink-0">
                     <i class="fa-solid fa-pause" id="pause-icon"></i>
                 </button>
                 <input type="range" id="time-speed-slider" min="0" max="5" step="0.1" value="1" class="w-full" oninput="updateTimeSpeed(this.value)">
             </div>
-            <div class="flex justify-between text-[10px] text-slate-400 mt-1.5 font-mono">
+            <div class="hidden sm:flex justify-between text-[10px] text-slate-400 mt-1.5 font-mono">
                 <span>หยุดนิ่ง</span>
-                <span>ปกติ</span>
-                <span>เร่งเวลา 5x</span>
+                <span>ปกติ 1x</span>
+                <span>เร่ง 5x</span>
             </div>
         </div>
 
         <!-- Interactive Gesture Hint -->
-        <div class="hud-glass rounded-xl px-3 py-2 text-[11px] text-slate-300 flex items-center gap-2.5 pointer-events-auto">
+        <div id="gesture-hint-card" class="hud-glass rounded-xl px-3 py-2 text-[11px] text-slate-300 flex items-center gap-2.5 pointer-events-auto">
             <i class="fa-solid fa-hand-pointer text-sky-400 text-sm"></i>
-            <span>ลากเมาส์/นิ้วเพื่อหมุนมุมมอง • เลื่อนลูกกลิ้งเพื่อซูมเข้า-ออก • คลิกที่ดาวเพื่อสำรวจ</span>
+            <span>ลากเมาส์/นิ้วเพื่อหมุนมุมมอง • เลื่อนหรือจีบนิ้วเพื่อซูม • แตะที่ดาวเพื่อสำรวจ</span>
         </div>
     </div>
 
     <!-- RIGHT MAIN INTERACTIVE PANEL (Dynamic Content Based on Mode) -->
-    <aside id="right-main-panel" class="fixed top-20 right-3 md:right-6 bottom-24 z-20 w-[92vw] sm:w-[410px] md:w-[440px] flex flex-col pointer-events-none transition-transform duration-300">
+    <aside id="right-main-panel" class="fixed top-20 right-3 md:right-5 bottom-24 z-20 w-[94vw] sm:w-[390px] lg:w-[430px] flex flex-col pointer-events-none">
         
-        <!-- Mobile Collapse Toggle Button -->
-        <div class="flex justify-end mb-1.5 pointer-events-auto">
-            <button onclick="toggleRightPanel()" id="btn-collapse-panel" class="hud-glass px-3 py-1 rounded-xl text-xs text-slate-300 hover:text-white flex items-center gap-1.5">
+        <!-- Panel Header Controls (Mobile Sheet Size Toggle + Collapse Toggle) -->
+        <div class="flex items-center justify-end gap-1.5 mb-1.5 pointer-events-auto">
+            <button onclick="toggleMobileSheetSize()" id="btn-expand-sheet" class="md:hidden hud-glass px-2.5 py-1 rounded-xl text-[11px] text-sky-300 hover:text-white flex items-center gap-1 border border-sky-400/30">
+                <i class="fa-solid fa-up-down" id="expand-sheet-icon"></i>
+                <span id="expand-sheet-text">ขยายเต็มจอ</span>
+            </button>
+            <button onclick="toggleRightPanel()" id="btn-collapse-panel" class="hud-glass px-3 py-1 rounded-xl text-xs text-slate-200 hover:text-white flex items-center gap-1.5 border border-sky-400/30">
                 <span id="collapse-panel-text">ซ่อนหน้าต่างข้อมูล</span>
                 <i class="fa-solid fa-chevron-right" id="collapse-panel-icon"></i>
             </button>
         </div>
 
         <!-- PANEL BODY CONTAINER -->
-        <div id="right-panel-body" class="hud-glass rounded-3xl p-4 md:p-5 overflow-y-auto flex-1 pointer-events-auto flex flex-col gap-4">
+        <div id="right-panel-body" class="hud-glass rounded-3xl p-3.5 sm:p-4 md:p-5 overflow-y-auto flex-1 pointer-events-auto flex flex-col gap-3.5">
             
             <!-- ========================================== -->
             <!-- VIEW 1 & 2: EXPLORE & DEEP DIVE INSPECTOR -->
@@ -738,8 +991,8 @@
     </aside>
 
     <!-- BOTTOM SOLAR SYSTEM PLANET DOCK -->
-    <footer class="fixed bottom-0 left-0 right-0 z-30 p-3 flex justify-center pointer-events-none">
-        <div class="hud-glass rounded-2xl p-2 flex items-center gap-1.5 md:gap-2 overflow-x-auto max-w-full pointer-events-auto">
+    <footer id="bottom-dock" class="fixed bottom-0 left-0 right-0 z-30 p-2 md:p-3 flex justify-center pointer-events-none">
+        <div class="hud-glass rounded-2xl p-1.5 md:p-2 flex items-center gap-1.5 md:gap-2 overflow-x-auto max-w-full pointer-events-auto">
             <!-- Dynamically populated by JS with Sun + 8 Planets + Dwarf Planet Pluto -->
             <div id="planet-dock-list" class="flex items-center gap-1.5 md:gap-2"></div>
         </div>
@@ -807,7 +1060,7 @@
                 rotationSpeed: 0.003,
                 tilt: 0.12,
                 tempC: 5500,
-                tempDisplay: '5,500 °C (แกนกลาง 15 ล้าน °C)',
+                tempDisplay: '5,500 °C (พื้นผิว) / 15 ล้าน °C (แกนกลาง)',
                 gravityG: 27.9,
                 gravityDisplay: '27.9 G (274 m/s²)',
                 diameterDisplay: '1,392,700 กม. (109 เท่าของโลก)',
@@ -1294,8 +1547,8 @@
                 labData: {
                     nakedStatus: 'แข็งตัวเป็นน้ำแข็งไนโตรเจนในสุญญากาศทันที',
                     nakedTime: 'น้อยกว่า 2 วินาที',
-                    nakedDesc: 'ที่อุณหภูมิ -229 °C เย็นจนแม้แต่อากาศที่เราหายใจก็กลายเป็นน้ำแข็ง! ทันทีที่ถอดชุดอวกาศ ร่างกายจะสูญเสียความร้อนและแข็งตัวเกือบถึงจุดศูนย์สัมบูรณ์',
-                    suitDesc: 'เดินสำรวจได้สนุกมาก! ด้วยแรงโน้มถ่วงเพียง 0.06G คุณสามารถกระโดดครั้งเดียวลอยสูงถึง 8.3 เมตร (สูงเท่าตึก 3 ชั้น!) และค่อยๆ ลอยตกลงมาอย่างนุ่มนวล',
+                    nakedDesc: 'ที่อุณหภูมิ -229 °C เย็นจนแม้แต่อากาศที่เราหายใจก็กลายเป็นน้ำแข็ง! ทันทีที่ถอดชุดอวกาศ ร่างกายจะสูญเสียความร้อนอย่างรวดเร็วและแข็งตัวในเวลาอันสั้น',
+                    suitDesc: 'เดินสำรวจได้สนุกมาก! ด้วยแรงโน้มถ่วงเพียง 0.06G ถ้าบนโลกคุณกระโดดได้สูงราว 0.5 เมตร บนดาวพลูโตจะลอยสูงถึงประมาณ 8 เมตร (สูงเท่าตึก 3 ชั้น!) และค่อยๆ ลอยตกลงมาอย่างนุ่มนวล',
                     waterDesc: 'น้ำ 1 ตันจะกลายเป็นหินน้ำแข็งที่แข็งแกร่งพอๆ กับหินแกรนิต เพราะที่ -229 °C น้ำแข็งทำหน้าที่เป็นหินโครงสร้างภูเขาของดาวพลูโต',
                     plantDesc: 'แข็งตัวและแตกสลายทันที และแสงอาทิตย์ที่ไกลถึง 5.9 พันล้านกิโลเมตรอ่อนเกินกว่าที่พืชทั่วไปจะสังเคราะห์แสงได้เต็มที่',
                     roverDesc: 'ต้องใช้แบตเตอรี่นิวเคลียร์ RTG เท่านั้นเพราะแผงโซลาร์เซลล์แทบผลิตไฟไม่ได้เลยในระยะห่างระดับนี้',
@@ -1900,18 +2153,60 @@
         }
 
         /* ============================================================================
-         * 5. CAMERA ORBIT, ZOOM & CLICK RAYCASTING CONTROLS
+         * 5. CAMERA ORBIT, ZOOM, ADAPTIVE ASPECT & CLICK RAYCASTING CONTROLS
          * ============================================================================ */
+        let pointerDownPos = { x: 0, y: 0 };
+        let pointerMovedDist = 0;
+        let isMobileSheetExpanded = false;
+
+        function getAdaptiveRadius(baseRadius) {
+            const aspect = (window.innerWidth || 1) / (window.innerHeight || 1);
+            if (aspect < 1.0) {
+                // Portrait phones & tablets: widen distance so horizontal FOV fits scene
+                const factor = Math.min(1.65, Math.max(1.05, 1.04 / Math.pow(aspect, 0.48)));
+                return baseRadius * factor;
+            }
+            return baseRadius;
+        }
+
+        function updateCameraViewportOffset() {
+            if (!camera || !renderer) return;
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            camera.aspect = w / h;
+
+            const rightPanel = document.getElementById('right-main-panel');
+            if (!isRightPanelCollapsed && rightPanel) {
+                const rect = rightPanel.getBoundingClientRect();
+                const isLandscapeCompact = h <= 540 && w > h;
+                if (w >= 768 || isLandscapeCompact) {
+                    // Desktop / iPad / Landscape: shift 3D center slightly left of the right panel
+                    const shiftX = Math.round(Math.min(w * 0.22, rect.width * 0.38));
+                    camera.setViewOffset(w, h, shiftX, 0, w, h);
+                } else {
+                    // Mobile Portrait bottom sheet: shift 3D center upward into open area
+                    const shiftY = Math.round(Math.min(h * 0.22, rect.height * 0.36));
+                    camera.setViewOffset(w, h, 0, shiftY, w, h);
+                }
+            } else {
+                camera.clearViewOffset();
+            }
+            camera.updateProjectionMatrix();
+        }
+
         function setupCameraInteraction(domElement) {
             domElement.addEventListener('mousedown', (e) => {
                 isDragging = true;
                 prevMouse = { x: e.clientX, y: e.clientY };
+                pointerDownPos = { x: e.clientX, y: e.clientY };
+                pointerMovedDist = 0;
             });
 
             window.addEventListener('mousemove', (e) => {
                 if (!isDragging) return;
                 const dx = e.clientX - prevMouse.x;
                 const dy = e.clientY - prevMouse.y;
+                pointerMovedDist += Math.hypot(dx, dy);
                 prevMouse = { x: e.clientX, y: e.clientY };
 
                 targetSpherical.theta -= dx * 0.0065;
@@ -1925,8 +2220,8 @@
             // Wheel Zoom
             domElement.addEventListener('wheel', (e) => {
                 e.preventDefault();
-                const minR = collisionState.active ? 8 : (CELESTIAL_DATA[currentTargetId].radius3D * 2.1);
-                targetSpherical.radius = Math.max(minR, Math.min(240, targetSpherical.radius + e.deltaY * 0.06));
+                const minR = collisionState.active ? 8 : (CELESTIAL_DATA[currentTargetId].radius3D * 2.0);
+                targetSpherical.radius = Math.max(minR, Math.min(320, targetSpherical.radius + e.deltaY * 0.06));
             }, { passive: false });
 
             // Touch Support for Mobile/Tablet
@@ -1935,8 +2230,11 @@
                 if (e.touches.length === 1) {
                     isDragging = true;
                     prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                    pointerDownPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                    pointerMovedDist = 0;
                 } else if (e.touches.length === 2) {
                     isDragging = false;
+                    pointerMovedDist = 99;
                     touchStartDist = Math.hypot(
                         e.touches[0].clientX - e.touches[1].clientX,
                         e.touches[0].clientY - e.touches[1].clientY
@@ -1948,6 +2246,7 @@
                 if (e.touches.length === 1 && isDragging) {
                     const dx = e.touches[0].clientX - prevMouse.x;
                     const dy = e.touches[0].clientY - prevMouse.y;
+                    pointerMovedDist += Math.hypot(dx, dy);
                     prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
                     targetSpherical.theta -= dx * 0.007;
                     targetSpherical.phi = Math.max(0.15, Math.min(Math.PI - 0.15, targetSpherical.phi - dy * 0.007));
@@ -1958,8 +2257,8 @@
                     );
                     const delta = touchStartDist - dist;
                     touchStartDist = dist;
-                    const minR = CELESTIAL_DATA[currentTargetId].radius3D * 2.1;
-                    targetSpherical.radius = Math.max(minR, Math.min(240, targetSpherical.radius + delta * 0.12));
+                    const minR = collisionState.active ? 8 : (CELESTIAL_DATA[currentTargetId].radius3D * 2.0);
+                    targetSpherical.radius = Math.max(minR, Math.min(320, targetSpherical.radius + delta * 0.14));
                 }
             }, { passive: true });
 
@@ -1967,9 +2266,9 @@
                 isDragging = false;
             });
 
-            // Click on 3D Planet Mesh to Select & Zoom
+            // Click/Tap on 3D Planet Mesh to Select & Zoom (ignore if user dragged camera)
             domElement.addEventListener('click', (e) => {
-                if (collisionState.active) return;
+                if (collisionState.active || pointerMovedDist > 8) return;
                 mouseVec.x = (e.clientX / window.innerWidth) * 2 - 1;
                 mouseVec.y = -(e.clientY / window.innerHeight) * 2 + 1;
                 raycaster.setFromCamera(mouseVec, camera);
@@ -1986,9 +2285,10 @@
         }
 
         function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
+            if (!renderer || !camera) return;
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            syncResponsiveLayout();
         }
 
         /* ============================================================================
@@ -2003,11 +2303,11 @@
                 const btn = document.createElement('button');
                 btn.id = `dock-btn-${id}`;
                 btn.onclick = () => selectPlanet(id, true);
-                btn.className = `px-3 py-1.5 rounded-xl border border-slate-700/70 bg-slate-900/75 hover:bg-slate-800 text-xs flex items-center gap-2 transition shrink-0 ${id === currentTargetId ? 'active-planet-pill' : ''}`;
+                btn.className = `px-2.5 py-1.5 md:px-3 md:py-1.5 rounded-xl border border-slate-700/70 bg-slate-900/75 hover:bg-slate-800 text-xs flex items-center gap-1.5 md:gap-2 transition shrink-0 ${id === currentTargetId ? 'active-planet-pill' : ''}`;
                 btn.innerHTML = `
                     <span class="text-base">${d.emoji}</span>
                     <div class="text-left">
-                        <div class="font-semibold text-white leading-none">${d.name}</div>
+                        <div class="font-semibold text-white leading-none text-[11px] md:text-xs">${d.name}</div>
                         <div class="text-[9px] text-slate-400 font-mono mt-0.5">${d.gravityG}G</div>
                     </div>
                 `;
@@ -2026,12 +2326,16 @@
                 switchMode('explore');
             }
 
-            // Update Dock Active State
+            // Update Dock Active State & Scroll into View on Mobile/Tablet
             PLANET_ORDER.forEach(pid => {
                 const el = document.getElementById(`dock-btn-${pid}`);
                 if (el) {
-                    if (pid === id) el.classList.add('active-planet-pill');
-                    else el.classList.remove('active-planet-pill');
+                    if (pid === id) {
+                        el.classList.add('active-planet-pill');
+                        el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                    } else {
+                        el.classList.remove('active-planet-pill');
+                    }
                 }
             });
 
@@ -2095,16 +2399,16 @@
             // Update Human Survival & What-If Lab for this planet
             updateHumanLabSimulation();
 
-            // Smooth Camera Zoom to Selected Planet
+            // Smooth Camera Zoom to Selected Planet (scaled for current device aspect ratio)
             if (zoomIn) {
-                targetSpherical.radius = d.radius3D * 3.4;
+                targetSpherical.radius = getAdaptiveRadius(d.radius3D * 3.4);
                 targetSpherical.phi = Math.PI / 2.3;
             }
         }
 
         function zoomCloseToCurrentTarget() {
             const d = CELESTIAL_DATA[currentTargetId];
-            targetSpherical.radius = d.radius3D * 2.25;
+            targetSpherical.radius = getAdaptiveRadius(d.radius3D * 2.25);
             targetSpherical.phi = Math.PI / 2.1;
             playUISound(660, 0.1);
         }
@@ -2114,7 +2418,7 @@
                 switchMode('explore');
             }
             currentTargetId = 'sun';
-            targetSpherical.radius = 115;
+            targetSpherical.radius = getAdaptiveRadius(115);
             targetSpherical.phi = Math.PI / 3.1;
             playUISound(420, 0.1);
         }
@@ -2176,13 +2480,13 @@
             ['explore', 'deepdive', 'humanlab', 'collision'].forEach(m => {
                 const btn = document.getElementById(`mode-btn-${m}`);
                 if (m === mode) {
-                    btn.className = 'mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-semibold transition-all flex items-center gap-2 bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/25';
+                    btn.className = 'mode-btn px-3 py-1.5 md:px-3.5 md:py-2 rounded-xl text-xs md:text-sm font-semibold transition-all flex items-center gap-1.5 md:gap-2 bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/25';
                 } else {
-                    btn.className = 'mode-btn px-3.5 py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2';
+                    btn.className = 'mode-btn px-3 py-1.5 md:px-3.5 md:py-2 rounded-xl text-xs md:text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1.5 md:gap-2';
                 }
             });
 
-            // Ensure right panel is expanded
+            // Ensure right panel is expanded when switching modes
             if (isRightPanelCollapsed) toggleRightPanel();
 
             const viewInspector = document.getElementById('panel-view-inspector');
@@ -2220,6 +2524,7 @@
                 viewCollision.classList.add('flex');
                 enterCollisionArena();
             }
+            updateCameraViewportOffset();
         }
 
         /* ============================================================================
@@ -2400,10 +2705,10 @@
                 p.labelEl.style.pointerEvents = 'none';
             });
 
-            // Position camera nicely for the collision stage
-            camTargetPos.set(0, 0, 0);
-            targetSpherical.radius = 38;
-            targetSpherical.phi = Math.PI / 2.4;
+            // Position camera nicely for the collision stage (adapted for phone/iPad/desktop aspect)
+            camTargetPos.set(4, 0, 0);
+            targetSpherical.radius = getAdaptiveRadius(42);
+            targetSpherical.phi = Math.PI / 2.35;
             targetSpherical.theta = 0;
 
             previewCollisionSetup();
@@ -2473,12 +2778,12 @@
             const matB = new THREE.MeshStandardMaterial({ map: texB, roughness: 0.7 });
             const meshB = new THREE.Mesh(new THREE.SphereGeometry(rB, 36, 36), matB);
             const yOffset = Math.sin((collisionState.angleDeg * Math.PI) / 180) * (rA + rB) * 0.75;
-            meshB.position.set(18, yOffset, 0);
+            meshB.position.set(16, yOffset, 0);
             collisionArenaGroup.add(meshB);
 
             // Trajectory Guide Line
             const lineGeo = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(18, yOffset, 0),
+                new THREE.Vector3(16, yOffset, 0),
                 new THREE.Vector3(-4, yOffset * 0.25, 0)
             ]);
             const lineMat = new THREE.LineDashedMaterial({ color: 0xf43f5e, dashSize: 0.8, gapSize: 0.5 });
@@ -2493,6 +2798,7 @@
             collisionState.targetId = targetId;
             collisionState.impactorId = impactorId;
             collisionState.phase = 'idle';
+            camTargetPos.set(4, 0, 0);
         }
 
         function resetCollisionArena() {
@@ -2504,6 +2810,10 @@
             if (collisionState.phase === 'approaching') return;
             previewCollisionSetup();
             collisionState.phase = 'approaching';
+            // On mobile, if the bottom sheet is expanded full-screen, shrink to half or collapse so user sees the 3D impact
+            if (window.innerWidth < 768 && isMobileSheetExpanded) {
+                toggleMobileSheetSize();
+            }
             playUISound(320, 0.25);
         }
 
@@ -2522,7 +2832,7 @@
             collisionArenaGroup.add(shockwave);
             collisionState.shockwaveMesh = shockwave;
 
-            // 2. 600 Debris & Magma Particles Ejected into Space
+            // 2. 650 Debris & Magma Particles Ejected into Space
             const count = 650;
             const pGeo = new THREE.BufferGeometry();
             const positions = new Float32Array(count * 3);
@@ -2660,7 +2970,7 @@
         function updateTimeSpeed(val) {
             timeMultiplier = parseFloat(val);
             isTimePaused = timeMultiplier === 0;
-            document.getElementById('time-speed-label').textContent = isTimePaused ? 'หยุดนิ่ง (0.0x)' : `${timeMultiplier.toFixed(1)}x`;
+            document.getElementById('time-speed-label').textContent = isTimePaused ? '0.0x' : `${timeMultiplier.toFixed(1)}x`;
             document.getElementById('pause-icon').className = isTimePaused ? 'fa-solid fa-play text-emerald-400' : 'fa-solid fa-pause';
         }
 
@@ -2668,7 +2978,7 @@
             isTimePaused = !isTimePaused;
             const slider = document.getElementById('time-speed-slider');
             if (isTimePaused) {
-                document.getElementById('time-speed-label').textContent = 'หยุดนิ่ง (Paused)';
+                document.getElementById('time-speed-label').textContent = 'หยุด';
                 document.getElementById('pause-icon').className = 'fa-solid fa-play text-emerald-400';
             } else {
                 if (timeMultiplier === 0) {
@@ -2703,21 +3013,78 @@
             playUISound(520, 0.06);
         }
 
+        function toggleMobileSheetSize() {
+            const panel = document.getElementById('right-main-panel');
+            const text = document.getElementById('expand-sheet-text');
+            if (!panel) return;
+            if (isRightPanelCollapsed) {
+                toggleRightPanel();
+            }
+            isMobileSheetExpanded = !isMobileSheetExpanded;
+            if (isMobileSheetExpanded) {
+                panel.classList.add('mobile-sheet-expanded');
+                document.body.classList.add('mobile-sheet-full');
+                if (text) text.textContent = 'ครึ่งจอ';
+            } else {
+                panel.classList.remove('mobile-sheet-expanded');
+                document.body.classList.remove('mobile-sheet-full');
+                if (text) text.textContent = 'ขยายเต็มจอ';
+            }
+            playUISound(550, 0.06);
+            setTimeout(updateCameraViewportOffset, 50);
+        }
+
         function toggleRightPanel() {
             isRightPanelCollapsed = !isRightPanelCollapsed;
+            const panel = document.getElementById('right-main-panel');
             const body = document.getElementById('right-panel-body');
             const text = document.getElementById('collapse-panel-text');
             const icon = document.getElementById('collapse-panel-icon');
+            const expandBtn = document.getElementById('btn-expand-sheet');
+            const isMobile = window.innerWidth < 768;
 
             if (isRightPanelCollapsed) {
                 body.classList.add('hidden');
-                text.textContent = 'แสดงหน้าต่างข้อมูล';
-                icon.className = 'fa-solid fa-chevron-left';
+                if (panel) panel.classList.add('panel-is-collapsed');
+                if (expandBtn) expandBtn.classList.add('hidden');
+                document.body.classList.remove('mobile-sheet-full');
+                text.textContent = isMobile ? 'เปิดหน้าต่างข้อมูล' : 'แสดงหน้าต่างข้อมูล';
+                icon.className = isMobile ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-left';
             } else {
                 body.classList.remove('hidden');
-                text.textContent = 'ซ่อนหน้าต่างข้อมูล';
-                icon.className = 'fa-solid fa-chevron-right';
+                if (panel) panel.classList.remove('panel-is-collapsed');
+                if (expandBtn) expandBtn.classList.remove('hidden');
+                if (isMobile && isMobileSheetExpanded) {
+                    document.body.classList.add('mobile-sheet-full');
+                }
+                text.textContent = isMobile ? 'ย่อดูดาว 3D' : 'ซ่อนหน้าต่างข้อมูล';
+                icon.className = isMobile ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-right';
             }
+            setTimeout(updateCameraViewportOffset, 50);
+        }
+
+        function syncResponsiveLayout() {
+            const h = document.getElementById('top-header');
+            const f = document.getElementById('bottom-dock');
+            if (h) {
+                document.documentElement.style.setProperty('--hdr-h', Math.ceil(h.getBoundingClientRect().height) + 'px');
+            }
+            if (f) {
+                document.documentElement.style.setProperty('--ftr-h', Math.ceil(f.getBoundingClientRect().height) + 'px');
+            }
+            const text = document.getElementById('collapse-panel-text');
+            const icon = document.getElementById('collapse-panel-icon');
+            const isMobile = window.innerWidth < 768;
+            if (text && icon) {
+                if (isRightPanelCollapsed) {
+                    text.textContent = isMobile ? 'เปิดหน้าต่างข้อมูล' : 'แสดงหน้าต่างข้อมูล';
+                    icon.className = isMobile ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-left';
+                } else {
+                    text.textContent = isMobile ? 'ย่อดูดาว 3D' : 'ซ่อนหน้าต่างข้อมูล';
+                    icon.className = isMobile ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-right';
+                }
+            }
+            updateCameraViewportOffset();
         }
 
         function openKnowledgeModal() {
@@ -2832,6 +3199,8 @@
                 if (collisionState.phase === 'approaching') {
                     const step = (0.22 + (collisionState.velocity / 120) * 0.35) * collisionState.slowMoFactor;
                     collisionState.bodyB.position.x -= step;
+                    // Smoothly pan camera focus toward impact point as bodyB approaches bodyA
+                    camTargetPos.x = (collisionState.bodyA.position.x + collisionState.bodyB.position.x) * 0.4;
                     const dist = collisionState.bodyA.position.distanceTo(collisionState.bodyB.position);
 
                     if (dist <= (collisionState.rA + collisionState.rB) * 0.82) {
@@ -2841,6 +3210,7 @@
                             collisionState.bodyB.position,
                             0.5
                         );
+                        camTargetPos.copy(collisionState.bodyA.position);
                         collisionState.bodyB.visible = false;
                         createImpactExplosionEffects(impactPoint, collisionState.targetId === 'sun');
                     }
@@ -2960,7 +3330,25 @@
             initThreeScene();
             buildBottomPlanetDock();
             selectPlanet('earth', false); // Start highlighting Earth while showing good overview
-            targetSpherical.radius = 75;
+            targetSpherical.radius = getAdaptiveRadius(75);
+            spherical.radius = targetSpherical.radius;
+
+            const h = document.getElementById('top-header');
+            const f = document.getElementById('bottom-dock');
+            if (window.ResizeObserver) {
+                const ro = new ResizeObserver(syncResponsiveLayout);
+                if (h) ro.observe(h);
+                if (f) ro.observe(f);
+            }
+            window.addEventListener('orientationchange', () => setTimeout(onWindowResize, 120));
+
+            // On compact mobile screens (< 768px), start with bottom sheet folded so user sees full 3D Solar System first
+            if (window.innerWidth < 768 && !isRightPanelCollapsed) {
+                toggleRightPanel();
+            } else {
+                syncResponsiveLayout();
+            }
+
             animate();
         };
     </script>
